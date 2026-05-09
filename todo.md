@@ -61,18 +61,20 @@
 
 ## Task 4：数据清洗 + 兜底策略
 
-- [ ] 实现 `src/index_score/data/cleaner.py`
-  - [ ] `clean_quote(raw_data) → IndexQuote`
-  - [ ] `clean_valuation(raw_data) → IndexValuation`
-  - [ ] 缺失值处理逻辑
-- [ ] 实现 `src/index_score/data/fallback.py`
-  - [ ] `fetch_with_fallback(index_code) → tuple[IndexQuote, IndexValuation]`
-  - [ ] AkShare 失败 → 重试 3 次（间隔 3 秒） → 切换 Tushare
-  - [ ] 两者都失败 → 抛出 `FetchError`
-- [ ] 补充 `tests/test_data.py` 测试
-- [ ] 验收：AkShare / Tushare 格式统一
-- [ ] 验收：Mock 切换逻辑正确
-- [ ] 验收：`pytest tests/test_data.py` 通过
+- [x] 实现 `src/index_score/data/cleaner.py`
+  - [x] `clean_quote(raw: IndexQuote) → IndexQuote`（OHLC 缺失回退、high/low 互换、NaN volume）
+  - [x] `clean_valuation(raw: IndexValuation) → IndexValuation`（`0.0` → `None`、负值 PE/PB → `None`）
+  - [x] `IndexValuation` 字段类型改为 `float | None`（`None` = 无数据，打分模块跳过重新分配权重）
+  - [x] `fetcher.py` 新增 `_to_optional_float()`，估值缺失返回 `None` 而非 `0.0`
+- [x] 实现 `src/index_score/data/fallback.py`
+  - [x] `fetch_with_retry(fn, *args) → T`（通用重试，3 次，间隔 3 秒）
+  - [x] `fetch_all(index_info, price_years=3) → FetchResult`（行情 + 估值拉取 + 清洗）
+  - [x] 估值失败不阻断，返回空估值（`pe_ttm=None`）
+  - [ ] Tushare 数据源切换（待购买 token 后补充，见 [迁移指南](.agents/doc/data-model/02-data-gap-and-tushare-migration.md)）
+- [x] 补充 `tests/test_data.py`：新增 `TestCleanQuote`、`TestCleanValuation`、`TestFetchWithRetry`、`TestFetchAll`（共 17 个用例）
+- [x] 验收：`pytest tests/test_data.py` 通过（42 个用例）
+- [x] 验收：`ruff check` 通过
+- [x] 全量测试 `pytest` 通过（55 个用例）
 
 ---
 
