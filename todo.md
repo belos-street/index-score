@@ -6,18 +6,18 @@
 
 ## Task 1：项目脚手架搭建
 
-- [ ] 创建 `pyproject.toml`（参照 [engineering](.agents/doc/engineering/01-engineering-setup.md)）
-- [ ] 创建 `src/index_score/` 包结构（参照 [architecture](.agents/doc/architecture/01-architecture-design.md) 目录结构）
-- [ ] 创建所有 `__init__.py`
-- [ ] 创建 `config.yaml`（参照 engineering）
-- [ ] 创建 `tests/` 目录
-- [ ] 创建 `report/` 目录 + `.gitkeep`
-- [ ] 创建 `logs/` 目录 + `.gitkeep`
-- [ ] 配置 `.gitignore`（Python 标准 + `report/*.md`）
-- [ ] `pip install -e ".[dev]"`
-- [ ] 验收：`python -c "import index_score"` 无报错
-- [ ] 验收：`ruff check src/` 通过
-- [ ] 验收：`pytest` 可运行
+- [x] 创建 `pyproject.toml`（参照 [engineering](.agents/doc/engineering/01-engineering-setup.md)）
+- [x] 创建 `src/index_score/` 包结构（参照 [architecture](.agents/doc/architecture/01-architecture-design.md) 目录结构）
+- [x] 创建所有 `__init__.py`
+- [x] 创建 `config.yaml`（参照 engineering）
+- [x] 创建 `tests/` 目录
+- [x] 创建 `report/` 目录 + `.gitkeep`
+- [x] 创建 `logs/` 目录 + `.gitkeep`
+- [x] 配置 `.gitignore`（Python 标准 + `report/*.md`）
+- [x] `pip install -e ".[dev]"`
+- [x] 验收：`python -c "import index_score"` 无报错
+- [x] 验收：`ruff check src/` 通过
+- [x] 验收：`pytest` 可运行
 
 ---
 
