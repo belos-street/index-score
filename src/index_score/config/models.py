@@ -81,3 +81,37 @@ class AppConfig:
     score_ranges: list[ScoreRange]
     llm: LLMConfig
     report: ReportConfig
+
+
+@dataclass
+class IndexQuote:
+    """指数行情数据。"""
+
+    code: str
+    name: str
+    date: str
+    open: float
+    close: float
+    high: float
+    low: float
+    volume: float
+    adj_close: float
+
+
+@dataclass
+class IndexValuation:
+    """指数估值数据。
+
+    估值绝对值和百分位字段使用 float | None：
+    - None 表示该指标暂无数据（打分模块会跳过并重新分配权重）
+    - 0.0 表示实际计算值为 0（如股息率为 0 意味着无分红）
+    """
+
+    code: str
+    date: str
+    pe_ttm: float | None = None
+    pe_percentile_5y: float | None = None
+    pb_lf: float | None = None
+    pb_percentile_5y: float | None = None
+    dividend_yield: float | None = None
+    dividend_yield_percentile_5y: float | None = None

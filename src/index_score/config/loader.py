@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from index_score.config.exceptions import ConfigError
 from index_score.config.models import (
@@ -42,7 +43,7 @@ def load_config(path: Path | str | None = None) -> AppConfig:
     return _parse_config(raw, config_path)
 
 
-def _read_yaml(path: Path) -> dict:
+def _read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise ConfigError(f"配置文件不存在: {path}")
 
@@ -58,7 +59,7 @@ def _read_yaml(path: Path) -> dict:
     return data
 
 
-def _parse_config(raw: dict, path: Path) -> AppConfig:
+def _parse_config(raw: dict[str, Any], path: Path) -> AppConfig:
     try:
         indexes = _parse_indexes(raw["indexes"])
         scoring = _parse_scoring(raw["scoring"])
@@ -79,7 +80,7 @@ def _parse_config(raw: dict, path: Path) -> AppConfig:
     )
 
 
-def _parse_indexes(items: list[dict]) -> list[IndexInfo]:
+def _parse_indexes(items: list[dict[str, Any]]) -> list[IndexInfo]:
     return [
         IndexInfo(
             code=str(item["code"]),
@@ -91,7 +92,7 @@ def _parse_indexes(items: list[dict]) -> list[IndexInfo]:
     ]
 
 
-def _parse_scoring(raw: dict) -> ScoringConfig:
+def _parse_scoring(raw: dict[str, Any]) -> ScoringConfig:
     templates: dict[str, ScoringTemplate] = {}
     for name, template_raw in raw["templates"].items():
         factors = [
@@ -111,7 +112,7 @@ def _parse_scoring(raw: dict) -> ScoringConfig:
     )
 
 
-def _parse_score_ranges(items: list[dict]) -> list[ScoreRange]:
+def _parse_score_ranges(items: list[dict[str, Any]]) -> list[ScoreRange]:
     return [
         ScoreRange(
             max_percentile=float(item["max_percentile"]),
@@ -121,7 +122,7 @@ def _parse_score_ranges(items: list[dict]) -> list[ScoreRange]:
     ]
 
 
-def _parse_llm(raw: dict) -> LLMConfig:
+def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
     return LLMConfig(
         provider=str(raw["provider"]),
         model=str(raw["model"]),
@@ -131,7 +132,7 @@ def _parse_llm(raw: dict) -> LLMConfig:
     )
 
 
-def _parse_report(raw: dict) -> ReportConfig:
+def _parse_report(raw: dict[str, Any]) -> ReportConfig:
     return ReportConfig(
         show_detail=bool(raw.get("show_detail", True)),
         sort_by=str(raw.get("sort_by", "score")),

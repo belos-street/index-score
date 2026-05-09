@@ -4,6 +4,18 @@
 
 ---
 
+## ⚠️ 已知问题：估值数据残缺
+
+> 详细分析和 Tushare 迁移方案见：[data-model/02-data-gap-and-tushare-migration.md](.agents/doc/data-model/02-data-gap-and-tushare-migration.md)
+
+**现状**：AkShare 没有任何一个接口能为我们的指数提供完整的 PE/PB/股息率 5 年历史数据（`index_value_hist_funddb` 已被移除）。当前仅中证红利和中证红利低波可通过 csindex 拿到 PE，其余因子和指数全部缺失。
+
+**当前策略**：采用降级打分，先跑通 MVP 流程。打分模块内置了缺失因子的权重自动重分配逻辑，不影响 Task 5-9 的开发。
+
+**后续行动**：购买 Tushare Pro token 后，按 [迁移指南](.agents/doc/data-model/02-data-gap-and-tushare-migration.md#4-tushare-pro-接入方案后续迁移) 补充缺失因子。预计 5 个 A 股/ETF 指数可覆盖完整的三因子数据。
+
+---
+
 ## Task 1：项目脚手架搭建
 
 - [x] 创建 `pyproject.toml`（参照 [engineering](.agents/doc/engineering/01-engineering-setup.md)）
@@ -34,16 +46,16 @@
 
 ## Task 3：AkShare 数据拉取器
 
-- [ ] 实现 `src/index_score/data/fetcher.py`
-  - [ ] `fetch_quote(index_code) → IndexQuote`
-  - [ ] `fetch_valuation(index_code) → IndexValuation`
-  - [ ] `fetch_price_history(index_code, years) → list[IndexQuote]`
-- [ ] 数据字段映射：AkShare 返回列名 → `IndexQuote` / `IndexValuation` 字段
-- [ ] 网络异常处理：超时、返回空数据、字段缺失
-- [ ] 编写 `tests/test_data.py`：Mock AkShare 返回，验证字段映射和异常处理
-- [ ] 验收：能拉取一个 A 股指数数据
-- [ ] 验收：能拉取一个美股指数数据
-- [ ] 验收：`pytest tests/test_data.py` 通过
+- [x] 实现 `src/index_score/data/fetcher.py`
+  - [x] `fetch_quote(index_code) → IndexQuote`
+  - [x] `fetch_valuation(index_code) → IndexValuation`
+  - [x] `fetch_price_history(index_code, years) → list[IndexQuote]`
+- [x] 数据字段映射：AkShare 返回列名 → `IndexQuote` / `IndexValuation` 字段
+- [x] 网络异常处理：超时、返回空数据、字段缺失
+- [x] 编写 `tests/test_data.py`：Mock AkShare 返回，验证字段映射和异常处理
+- [x] 验收：能拉取一个 A 股指数数据
+- [x] 验收：能拉取一个美股指数数据
+- [x] 验收：`pytest tests/test_data.py` 通过
 
 ---
 
