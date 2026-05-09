@@ -23,12 +23,12 @@
 
 ## Task 2：配置加载模块
 
-- [ ] 定义 dataclass：`IndexInfo` / `FactorConfig` / `ScoringTemplate` / `ScoringConfig` / `ScoreRange` / `LLMConfig` / `ReportConfig` / `AppConfig`（参照 [data-model](.agents/doc/data-model/01-data-model.md)）
-- [ ] 实现 `src/index_score/config/loader.py`：加载 config.yaml → `AppConfig` 实例
-- [ ] 实现 `scoring_templates` 解析，构建 `dict[str, ScoringTemplate]`
-- [ ] config.yaml 不存在或格式错误时抛出 `ConfigError`
-- [ ] 编写 `tests/test_config.py`：正常加载、模板解析、缺失字段、格式错误
-- [ ] 验收：`pytest tests/test_config.py` 通过
+- [x] 定义 dataclass：`IndexInfo` / `FactorConfig` / `ScoringTemplate` / `ScoringConfig` / `ScoreRange` / `LLMConfig` / `ReportConfig` / `AppConfig`（参照 [data-model](.agents/doc/data-model/01-data-model.md)）
+- [x] 实现 `src/index_score/config/loader.py`：加载 config.yaml → `AppConfig` 实例
+- [x] 实现 `scoring_templates` 解析，构建 `dict[str, ScoringTemplate]`
+- [x] config.yaml 不存在或格式错误时抛出 `ConfigError`
+- [x] 编写 `tests/test_config.py`：正常加载、模板解析、缺失字段、格式错误
+- [x] 验收：`pytest tests/test_config.py` 通过
 
 ---
 
