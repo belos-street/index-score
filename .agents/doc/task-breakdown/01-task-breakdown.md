@@ -2,7 +2,7 @@
 
 ## 输入
 
-- 需求文档：`../大盘指数量化打分Agent需求文档-初稿.md`
+- 需求文档：`../pr.md`
 - 架构设计：`../architecture/01-architecture-design.md`
 - 数据模型：`../data-model/01-data-model.md`
 - 工程基建：`../engineering/01-engineering-setup.md`
@@ -34,6 +34,7 @@
 - 创建 config.yaml（参照工程基建文档）
 - 创建 tests/ 目录
 - 创建 report/ 目录 + .gitkeep
+- 创建 logs/ 目录 + .gitkeep
 - 配置 .gitignore（Python 标准 + report/*.md）
 - `pip install -e ".[dev]"`
 
@@ -54,9 +55,10 @@
 
 **执行内容**：
 - src/index_score/config/loader.py — 加载 config.yaml
-- 按数据模型定义 AppConfig / ScoringConfig / LLMConfig / ScoreRange dataclass
+- 按数据模型定义 AppConfig / ScoringConfig / ScoringTemplate / FactorConfig / LLMConfig / ReportConfig / ScoreRange dataclass
+- 解析 scoring_templates 配置，构建模板字典
 - config.yaml 不存在或格式错误时抛出友好异常
-- 编写 tests/test_config.py：正常加载、缺失字段、格式错误
+- 编写 tests/test_config.py：正常加载、模板解析、缺失字段、格式错误
 
 **验收**：
 - [ ] 可加载 config.yaml 并返回 AppConfig 实例
@@ -117,32 +119,39 @@
 
 ## 阶段四：量化打分层
 
-### Task 5：单因子打分 + 加权计算
+### Task 5：模板化打分模型
 
-**目标**：实现 3 因子打分模型
+**目标**：实现基于指数类型模板的打分模型
 
 **前置**：Task 2（配置）
 
 **执行内容**：
+- src/index_score/scoring/templates.py
+  - 加载 config.yaml 中的 scoring_templates
+  - 根据 IndexInfo.template 获取对应的 ScoringTemplate
 - src/index_score/scoring/rules.py
   - 分位→分数映射规则（从 config.score_ranges 读取）
 - src/index_score/scoring/factor.py
-  - score_dividend_yield(percentile: float) → FactorScore
-  - score_pe(percentile: float) → FactorScore
-  - score_price_position(position: float) → FactorScore
+  - score_factor(percentile: float, score_ranges) → FactorScore
+  - 通用打分函数，适用于所有因子类型
   - label 映射：1="极便宜" / 3="便宜" / 5="中性" / 7="偏贵" / 9="极贵"
 - src/index_score/scoring/calculator.py
   - calculate_price_position(adj_close, high_3y, low_3y) → PricePosition
-  - calculate_index_score(index_info, valuation, price_position, config) → IndexScore
+  - calculate_index_score(index_info, valuation, price_position, template, config) → IndexScore
+  - 根据模板配置的因子列表和权重加权计算总分
 - 编写 tests/test_scoring.py：
   - 分位边界测试（20%、40%、60%、80%）
+  - 模板加载测试（4 种模板各自的因子和权重）
   - 加权计算精度测试
-  - 异常分位值处理
+  - 数据缺失时权重重新分配测试
 
 **验收**：
 - [ ] 分位 15% → 1 分，分位 25% → 3 分，分位 50% → 5 分
-- [ ] 总分 = 股息率×0.4 + PE×0.35 + 价格位置×0.25，保留 2 位小数
-- [ ] 分位恰好为 20% 时归入 ≤20% 档（1 分）
+- [ ] 红利型模板：总分 = 股息率×0.4 + PE×0.35 + 价格位置×0.25
+- [ ] 价值型模板：总分 = PE×0.4 + PB×0.3 + 股息率×0.3
+- [ ] 成长型模板：总分 = PE×0.5 + 价格位置×0.35 + 股息率×0.15
+- [ ] 宽基型模板：总分 = PE×0.35 + 股息率×0.35 + 价格位置×0.30
+- [ ] 数据缺失时权重按比例重新分配
 - [ ] 测试通过
 
 ---
@@ -164,6 +173,10 @@
   - generate_interpretation(index_score: IndexScore) → str
 - src/index_score/llm/tools.py
   - 打分查询工具封装（供 LangChain Agent 调用）
+  - get_index_score — 查询单个或全部指数打分结果
+  - compare_indexes — 对比多个指数的打分和因子差异（V2 预留）
+  - get_allocation — 基于打分结果生成配置建议（V2 预留）
+  - generate_report — 生成 Markdown 报告
 - 编写 tests/test_llm.py：Mock LLM 返回，验证 prompt 拼接和输出格式
 
 **验收**：
@@ -185,7 +198,7 @@
 **执行内容**：
 - src/index_score/report/template.py
   - Jinja2 模板：报告标题 / 摘要 / 指数明细表 / 详细分析 / 数据来源
-  - 模板严格参照需求文档第 6 节的格式
+  - 模板严格参照架构设计文档中 report 模块的"报告格式定义"
 - src/index_score/report/generator.py
   - generate_report(report_data: ReportData) → str (Markdown 文本)
 - src/index_score/report/exporter.py
@@ -213,7 +226,7 @@
 - src/index_score/ui/app.py — Textual App 主框架
   - 标题区：Agent 名称 + 数据更新时间 + 数据来源
   - 核心表格区：指数名称 / 当前打分 / 各因子分，按打分从低到高排序
-  - 交互操作区：【1】刷新数据 【2】查看详情 【3】生成报告 【0】退出
+  - 交互操作区：【R】刷新数据 【Enter】查看详情 【G】生成报告 【Q】退出
   - 颜色规则：1-3 绿色 / 5 黄色 / 7-9 红色
 - src/index_score/ui/widgets/score_table.py — 打分表格组件
 - src/index_score/ui/widgets/factor_detail.py — 因子详情面板
@@ -223,7 +236,7 @@
 **验收**：
 - [ ] 运行 `python main.py` 启动终端界面
 - [ ] 表格正确显示所有指数打分，颜色区分
-- [ ] 按数字键可执行对应操作
+- [ ] 按快捷键可执行对应操作
 - [ ] 查看详情展示因子分位 + LLM 解读
 
 ---
@@ -254,11 +267,11 @@
 ```
 Task 1 (脚手架)
   ↓
-Task 2 (配置层)
+Task 2 (配置层 + 模板加载)
   ↓
 Task 3 (数据拉取) → Task 4 (数据清洗+兜底)
                         ↓
-Task 5 (打分计算) ←────┘
+Task 5 (模板化打分) ←───┘
   ↓
 Task 6 (LLM 解读)
   ↓

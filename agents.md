@@ -6,11 +6,11 @@
 
 ## 项目概述
 
-**index-score** 是一款大盘指数量化打分工具，基于 Python 技术栈开发，专注于对主流大盘指数进行量化打分（0-10 分，越低越便宜）。面向长期价值投资者和指数基金投资者，通过量化模型替代人工计算，结合 LLM 自然语言解读，降低投资决策门槛。
+**index-score** 是一款大盘指数量化打分工具，基于 Python 技术栈开发，专注于对主流大盘指数进行量化打分（1-9 分，越低越便宜）。面向长期价值投资者和指数基金投资者，通过量化模型替代人工计算，结合 LLM 自然语言解读，降低投资决策门槛。
 
 ### 核心功能
 
-- **指数量化打分**：覆盖中证红利、中证红利低波、标普中国红利低波50、国证价值100、国证自由现金流、纳指、标普500等，采用"3因子+加权平均"模型
+- **指数量化打分**：覆盖中证红利、中证红利低波、标普中国红利低波50、国证价值100、国证自由现金流、纳指、标普500等，采用指数类型模板化 3 因子加权模型
 - **命令行终端展示**：基于 Textual 的组件化终端 UI，彩色表格展示打分结果
 - **标准化报告生成**：Markdown 格式投资参考报告，含因子拆解和 LLM 解读
 
@@ -18,20 +18,27 @@
 
 | 层级    | 技术                                             |
 | ----- | ---------------------------------------------- |
-| 语言    | Python 3.9+                                    |
+| 语言    | Python 3.10+                                    |
 | 数据    | AkShare / Tushare + Pandas                     |
-| Agent | LangChain + 大模型 API (OpenAI / DeepSeek / 通义千问) |
+| Agent | LangChain + langchain-openai (OpenAI / DeepSeek / 通义千问) |
 | 终端 UI | Textual + Rich                                 |
-| 报告    | Markdown                                       |
-| 缓存    | SQLite                                         |
+| 报告    | Markdown + Jinja2                              |
 
 ### 打分模型
 
-- 股息率分位（近5年）权重 40%
-- PE 估值分位（近5年）权重 35%
-- 价格位置分位（近3年）权重 25%
-- 单因子打分：分位 ≤20% → 1分，20-40% → 3分，40-60% → 5分，60-80% → 7分，>80% → 9分
-- 总分 = 股息率因子分×40% + PE因子分×35% + 价格位置因子分×25%
+采用**指数类型模板化设计**，不同类型的指数使用不同的因子组合和权重：
+
+| 模板 | 适用指数 | 因子1 | 因子2 | 因子3 |
+|------|---------|-------|-------|-------|
+| 红利型 (dividend) | 中证红利、中证红利低波、标普中国红利低波50 | 股息率分位 40% | PE 分位 35% | 价格位置 25% |
+| 价值型 (value) | 国证价值100、国证自由现金流 | PE 分位 40% | PB 分位 30% | 股息率分位 30% |
+| 成长型 (growth) | 纳指 | PE 分位 50% | 价格位置 35% | 股息率分位 15% |
+| 宽基型 (balanced) | 标普500 | PE 分位 35% | 股息率分位 35% | 价格位置 30% |
+
+- 估值分位统计周期：5 年；价格位置统计周期：3 年
+- 单因子打分：≤20%→1分，20-40%→3分，40-60%→5分，60-80%→7分，>80%→9分
+- 总分 = 各因子分 × 对应权重，保留 2 位小数
+- 详细设计 → `.agents/doc/scoring/01-scoring-model.md`
 
 ***
 
@@ -42,7 +49,9 @@ index-score/
 ├── agents.md                  # 本文件：LLM 项目导航
 ├── .agents/
 │   ├── doc/                   # 项目文档
-│   │   ├── 大盘指数量化打分Agent需求文档-初稿.md
+│   │   ├── pr.md              # 需求文档
+│   │   ├── scoring/
+│   │   │   └── 01-scoring-model.md
 │   │   ├── architecture/
 │   │   │   └── 01-architecture-design.md
 │   │   ├── data-model/
@@ -74,22 +83,32 @@ index-score/
 
 ### 需求文档
 
-#### 大盘指数量化打分Agent需求文档-初稿.md
+#### pr.md — 需求文档
 
-项目的核心需求文档，定义了：
+项目的需求大纲文档，定义了：
 
-- Agent 的核心定位与目标用户
-- 核心功能（量化打分、终端展示、报告生成）与辅助功能（数据获取、LLM解读、异常处理）
-- 完整技术栈选型及理由
-- 数据获取细节（字段规范、API选择、缓存策略）
-- 量化打分逻辑（因子权重、打分规则、总分计算）
-- LangChain Agent 实现细节（工具封装、Prompt设计、交互逻辑）
-- 终端 UI 布局与视觉规范
-- 报告内容结构与导出规范
-- 异常处理策略
-- 结果展示的详细格式要求
+- 项目定位、目标用户、核心价值
+- 功能清单概要（量化打分、终端展示、LLM报告解读、报告生成）
+- 技术栈选型（Python 3.10+、AkShare/Tushare、LangChain、Textual）
+- 预设指数列表及模板绑定
+- 打分模型设计原则（模板化设计、通用规则）
+- V2 迭代规划（自然语言问答、仓位配置建议）
+- 文档索引（指路所有子文档）
 
-**当需要理解项目需求、实现细节或输出规范时，应参考此文档。**
+**具体实现细节分布在各子文档中，参见下方。**
+
+#### scoring/01-scoring-model.md — 打分模型设计
+
+指数类型模板化打分模型的完整定义：
+
+- 4 种打分模板（红利型/价值型/成长型/宽基型）的因子组合、权重、适用指数
+- 每种模板的设计理由和关联 Skill
+- 单因子打分规则（5 档 1/3/5/7/9）
+- 价格位置计算公式
+- 总分计算公式
+- 数据缺失处理策略
+
+**当需要理解打分逻辑、修改因子权重、新增打分模板时，应参考此文档。**
 
 ### 开发文档
 
@@ -99,19 +118,28 @@ index-score/
 
 - 6 层模块划分：data（数据获取）→ scoring（量化打分）→ llm（LLM解读）→ report（报告生成）→ config（配置）→ ui（终端UI）
 - 每层的职责、核心组件、输入输出、依赖关系
-- 完整数据流链路：数据拉取 → 清洗 → 打分 → LLM解读 → 展示/报告
+- 完整数据流链路：数据拉取（含3年历史价格）→ 清洗 → 打分（price_position计算 + 模板化因子打分 + 加权求和）→ LLM解读 → 展示/报告
+- 报告格式定义（Jinja2 模板结构：摘要 / 打分明细表 / 详细分析 / 数据来源）
 - 项目目录结构（src layout）
 - 关键设计决策（包结构、配置格式、模板引擎等）
 
-**当需要理解模块间关系、代码组织方式时，应参考此文档。**
+- **报告格式定义**（Jinja2 模板，4 个章节）：
+  - 摘要：打分指数数量、平均分、最便宜/最贵指数、整体水平
+  - 打分明细：Markdown 表格，列根据模板动态生成（不适用因子标记 `-`），格式 `分位值(分数)`
+  - 详细分析：每个指数的估值概况 + LLM 自然语言解读
+  - 数据来源与声明
+- 报告排序：默认按总分从低到高（便宜在前），可在 config.yaml 中配置 `sort_by`
+
+**当需要理解模块间关系、代码组织方式、实现报告生成器时，应参考此文档。**
 
 #### data-model/01-data-model.md — 数据模型
 
 所有核心数据结构的定义，定义了：
 
-- IndexInfo（指数基础信息）、IndexQuote（行情数据）、IndexValuation（估值数据）
+- IndexInfo（指数基础信息，含 template 字段）、IndexQuote（行情数据）、IndexValuation（估值数据）
 - PricePosition（价格位置）、FactorScore（单因子打分）、IndexScore（指数打分结果）
-- AppConfig / ScoringConfig / LLMConfig（配置模型）
+- AppConfig / ScoringConfig / ScoringTemplate / FactorConfig / LLMConfig / ReportConfig（配置模型）
+- ScoreRange（分位→分数映射规则）
 - ReportData / ReportSummary（报告数据模型）
 - 模块间数据流契约
 
@@ -138,7 +166,7 @@ index-score/
 - 阶段二：配置加载模块
 - 阶段三：AkShare 数据拉取器
 - 阶段四：数据清洗 + 兜底策略
-- 阶段五：单因子打分 + 加权计算
+- 阶段五：模板化打分模型
 - 阶段六：LangChain Agent + 投资解读生成
 - 阶段七：Markdown 报告生成
 - 阶段八：Textual 终端界面
@@ -190,7 +218,7 @@ index-score/
 - **用途**：构建 AI Agent 和 LLM 应用的框架参考文档
 - **覆盖内容**：Agent 架构、模型集成、工具定义、消息格式、内存管理、流式输出、结构化输出、中间件、Prompt 模板、RAG、错误处理
 - **触发条件**：开发 LangChain 相关功能时参考
-- **关键导入**：`from langchain.agents import create_agent`、`from langchain.tools import tool`
+- **关键导入**：`from langchain.agents import create_agent`、`from langchain.tools import tool`、`from langchain_openai import ChatOpenAI`
 
 ***
 
@@ -309,24 +337,32 @@ index-score/
 ### 项目上下文
 
 - 当前项目处于初始阶段，主要代码结构待搭建
-- 核心需求文档位于 `.agents/doc/大盘指数量化打分Agent需求文档-初稿.md`
+- 核心需求文档位于 `.agents/doc/pr.md`
 - 所有开发应严格遵循需求文档中定义的功能边界和技术规范
 
 ### 编码规范
 
-遵循 `belos-street` 技能定义的编码规范：
+遵循 `belos-street` 技能定义的编码规范（Python 项目）：
 
-- 文件/目录命名：kebab-case
-- 函数/变量：camelCase
-- 接口/类型：PascalCase
-- 常量：UPPER\_SNAKE\_CASE
-- 布尔值：is/has/can 前缀
+- 文件/目录命名：snake_case（如 `fetcher.py`、`score_table.py`）
+- 函数/变量：snake_case（如 `fetch_quote`、`score_factor`）
+- 类：PascalCase（如 `IndexScore`、`ScoringTemplate`）
+- 常量：UPPER\_SNAKE\_CASE（如 `MAX_RETRY_COUNT`）
+- 布尔值：is/has/can 前缀（如 `is_valid`、`has_data`）
+- 代码风格：ruff 统一管理（行宽 88、4 空格缩进、双引号）
+- 类型注解：Python 3.10+ 语法（`str | None` 而非 `Optional[str]`）
+- 日志：使用 `logging`，禁止 `print` 做正式输出
+- 测试：pytest + AAA 原则，外部 API 用 `unittest.mock.patch` Mock
 - 核心原则：一致性优先 > 描述性 > 简洁 > 避免缩写
 
 ### Agent 开发要点
 
 - 使用 LangChain 的 `create_agent` 创建 Agent
-- 将数据拉取、打分计算、报告生成封装为 LangChain 工具
+- 封装以下 LangChain 工具：
+  - `get_index_score` — 查询单个或全部指数打分结果
+  - `compare_indexes` — 对比多个指数的打分和因子差异（V2）
+  - `get_allocation` — 基于打分结果生成配置建议（V2）
+  - `generate_report` — 生成 Markdown 报告
 - 支持多模型切换（OpenAI / DeepSeek / 通义千问）
-- 系统提示词需明确 Agent 定位、打分逻辑、输出格式
+- 系统提示词需明确定位、打分逻辑、输出格式
 

@@ -2,7 +2,7 @@
 
 ## 输入
 
-- 需求文档：`../大盘指数量化打分Agent需求文档-初稿.md`
+- 需求文档：`../pr.md`
 - 架构设计：`../architecture/01-architecture-design.md`
 
 ## 输出
@@ -24,19 +24,20 @@ class IndexInfo:
     code: str              # 指数代码，如 "000922"
     name: str              # 指数名称，如 "中证红利低波"
     market: str            # 市场，"CN" / "US"
+    template: str          # 打分模板名，如 "dividend" / "value" / "growth" / "balanced"
 ```
 
 ### 预设指数列表
 
-| code | name | market |
-|------|------|--------|
-| 000922 | 中证红利 | CN |
-| 930955 | 中证红利低波 | CN |
-| 930735 | 标普中国红利低波50 | CN |
-| 399378 | 国证价值100 | CN |
-| 980092 | 国证自由现金流 | CN |
-| IXIC | 纳指 | US |
-| SPX | 标普500 | US |
+| code | name | market | template |
+|------|------|--------|----------|
+| 000922 | 中证红利 | CN | dividend |
+| 930955 | 中证红利低波 | CN | dividend |
+| 930735 | 标普中国红利低波50 | CN | dividend |
+| 399378 | 国证价值100 | CN | value |
+| 980092 | 国证自由现金流 | CN | value |
+| IXIC | 纳指 | US | growth |
+| SPX | 标普500 | US | balanced |
 
 ## 2. 原始行情数据
 
@@ -64,13 +65,10 @@ class IndexValuation:
     code: str
     date: str
     pe_ttm: float                  # PE(TTM)
-    pe_percentile_3y: float        # PE 近3年分位 (0-100)
     pe_percentile_5y: float        # PE 近5年分位 (0-100)
     pb_lf: float                   # PB(LF)
-    pb_percentile_3y: float        # PB 近3年分位 (0-100)
     pb_percentile_5y: float        # PB 近5年分位 (0-100)
     dividend_yield: float          # 股息率 (%)
-    dividend_yield_percentile_3y: float   # 股息率近3年分位 (0-100)
     dividend_yield_percentile_5y: float   # 股息率近5年分位 (0-100)
 ```
 
@@ -92,7 +90,7 @@ class PricePosition:
 ```python
 @dataclass
 class FactorScore:
-    name: str                      # 因子名："dividend_yield" / "pe" / "price_position"
+    name: str                      # 因子名："dividend_yield" / "pe" / "pb" / "price_position"
     percentile: float              # 分位值 (0-100)
     score: int                     # 打分：1/3/5/7/9
     label: str                     # 标签："极便宜"/"便宜"/"中性"/"偏贵"/"极贵"
@@ -117,19 +115,27 @@ class IndexScore:
 
 ```python
 @dataclass
+class FactorConfig:
+    field: str                     # 数据字段名，如 "pe_percentile_5y"
+    weight: float                  # 权重，如 0.40
+
+@dataclass
+class ScoringTemplate:
+    name: str                      # 模板名，如 "dividend"
+    factors: list[FactorConfig]    # 因子列表及权重
+
+@dataclass
 class ScoringConfig:
-    dividend_yield_weight: float   # 默认 0.40
-    pe_weight: float               # 默认 0.35
-    price_position_weight: float   # 默认 0.25
+    templates: dict[str, ScoringTemplate]   # 模板名 → 模板配置
     pe_percentile_years: int       # 默认 5（年）
     dividend_yield_percentile_years: int  # 默认 5
     price_position_years: int      # 默认 3
 
 @dataclass
 class ScoreRange:
-    min_percentile: float
-    max_percentile: float
-    score: int
+    max_percentile: float          # 分位上限（含），如 20、40、60、80、100
+    score: int                     # 对应分数，如 1、3、5、7、9
+    # min_percentile 从上一条 ScoreRange 的 max_percentile 推导，无需显式存储
 
 @dataclass
 class LLMConfig:
@@ -137,6 +143,12 @@ class LLMConfig:
     model: str                     # 模型名称
     api_key: str
     base_url: str | None           # 自定义 base_url（国产模型需要）
+    timeout: int                   # 超时秒数，默认 30
+
+@dataclass
+class ReportConfig:
+    show_detail: bool              # 是否展示单个指数详细分析，默认 True
+    sort_by: str                   # 排序方式："score" / "name"
 
 @dataclass
 class AppConfig:
@@ -144,6 +156,7 @@ class AppConfig:
     scoring: ScoringConfig
     score_ranges: list[ScoreRange]
     llm: LLMConfig
+    report: ReportConfig
 ```
 
 ## 8. 报告数据模型

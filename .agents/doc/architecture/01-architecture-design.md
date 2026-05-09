@@ -2,7 +2,7 @@
 
 ## 输入
 
-- 需求文档：`../大盘指数量化打分Agent需求文档-初稿.md`
+- 需求文档：`../pr.md`
 
 ## 输出
 
@@ -47,31 +47,36 @@
 
 ### 2. scoring — 量化打分层
 
-**职责**：基于 3 因子模型计算每个指数的 0-10 分
+**职责**：基于指数类型模板计算每个指数的 1-9 分
 
 **核心组件**：
-- `factor.py` — 单因子打分函数（股息率/PE/价格位置 → 1/3/5/7/9 分）
-- `calculator.py` — 加权总分计算
+- `factor.py` — 单因子打分函数（分位值 → 1/3/5/7/9 分 + 标签）
+- `calculator.py` — 根据模板配置加权计算总分
 - `rules.py` — 打分规则定义（分位区间→分数映射）
+- `templates.py` — 模板加载与解析（从 config.yaml 读取 scoring_templates）
 
-**输入**：data 层输出的 DataFrame
+**输入**：data 层输出的 DataFrame + IndexInfo 中的 template 字段
 **输出**：每个指数的总分 + 各因子分 + 因子分位明细
 
-**依赖**：Pandas、config（权重配置）
+**依赖**：Pandas、config（模板配置）
 
 ### 3. llm — LLM 解读层
 
-**职责**：根据打分结果生成自然语言投资解读
+**职责**：通过 LangChain Agent 根据打分结果生成自然语言投资解读
 
 **核心组件**：
-- `agent.py` — LangChain Agent 构建
-- `prompts.py` — 系统提示词和模板
-- `tools.py` — 封装打分查询为 LangChain 工具
+- `agent.py` — LangChain Agent 构建（create_agent + 工具注册）
+- `prompts.py` — 系统提示词和解读模板
+- `tools.py` — 封装核心业务函数为 LangChain Tool：
+  - `get_index_score` — 查询单个或全部指数打分结果
+  - `compare_indexes` — 对比多个指数的打分和因子差异（V2）
+  - `get_allocation` — 基于打分结果生成仓位配置建议（V2）
+  - `generate_report` — 生成 Markdown 报告
 
 **输入**：scoring 层输出的打分结果
 **输出**：Markdown 格式的自然语言解读
 
-**依赖**：LangChain、OpenAI/DeepSeek API
+**依赖**：LangChain、langchain-openai、OpenAI/DeepSeek API
 
 ### 4. report — 报告生成层
 
@@ -84,6 +89,57 @@
 
 **输入**：scoring 结果 + llm 解读
 **输出**：`report/指数打分报告_YYYYMMDD.md` 文件
+
+**报告格式定义**（Jinja2 模板结构）：
+
+```markdown
+# 大盘指数量化打分报告
+
+> 生成日期：YYYY-MM-DD HH:MM | 数据来源：AkShare/Tushare
+
+## 摘要
+
+| 指标 | 值 |
+|------|---|
+| 打分指数数量 | N |
+| 平均分 | X.XX |
+| 最低分指数 | xxx (X.XX 分) |
+| 最高分指数 | xxx (X.XX 分) |
+| 整体水平 | 中性偏低/偏高 |
+
+## 打分明细
+
+| 排名 | 指数名称 | 模板 | 股息率分位 | PE分位 | PB分位 | 价格位置 | 总分 | 估值水平 |
+|------|---------|------|-----------|-------|-------|---------|------|---------|
+| 1 | 中证红利 | dividend | 15.2%(1) | 32.1%(3) | - | 45.3%(5) | 2.60 | 便宜 |
+| ... | ... | ... | ... | ... | ... | ... | ... | ... |
+
+> 因子分位列格式：`分位值(分数)`，不适用的因子标记 `-`
+
+## 指数详细分析
+
+### 1. 中证红利 (000922) — 2.60 分 · 便宜
+
+**估值概况**：PE(TTM) 6.85，近5年分位 32.1%；股息率 5.2%，近5年分位 15.2%
+
+**LLM 解读**：
+
+{llm_interpretation_text}
+
+---
+
+（其余指数同上格式，按总分从低到高排列）
+
+## 数据来源与声明
+
+- 数据更新时间：YYYY-MM-DD HH:MM
+- 数据来源：AkShare（首选）/ Tushare（备选）
+- 本报告仅供参考，不构成投资建议
+```
+
+- 打分明细表的列根据预设指数实际使用的模板动态生成（只显示该模板包含的因子列）
+- `sort_by: "score"` 时按总分从低到高排列（便宜的在前）
+- 报告中 1-3 分标签"便宜"、5 分"中性"、7-9 分"偏贵"
 
 **依赖**：Markdown、Jinja2（模板）
 
@@ -114,10 +170,15 @@
 用户启动 App
     ↓
 data.fetcher 拉取指数数据（AkShare → Tushare 兜底）
+    ├── fetch_quote → 当日行情 + IndexValuation
+    └── fetch_price_history → 近3年历史价格（用于计算 price_position）
     ↓
 data.cleaner 清洗为统一 DataFrame
     ↓
 scoring.calculator 计算各因子分 + 加权总分
+    ├── calculate_price_position(adj_close, high_3y, low_3y) → PricePosition
+    ├── score_factor(percentile) → FactorScore（按模板配置的因子列表逐个打分）
+    └── calculate_index_score(...) → IndexScore（模板权重加权求和）
     ↓
 ┌───────────────┬──────────────────┐
 ↓               ↓                  ↓
@@ -144,7 +205,8 @@ index-score/
 │       │   ├── __init__.py
 │       │   ├── factor.py
 │       │   ├── calculator.py
-│       │   └── rules.py
+│       │   ├── rules.py
+│       │   └── templates.py
 │       ├── llm/                # LLM 解读层
 │       │   ├── __init__.py
 │       │   ├── agent.py
@@ -173,6 +235,7 @@ index-score/
 │   ├── test_report.py
 │   └── test_config.py
 ├── report/                     # 生成的报告存放目录
+├── logs/                       # 日志目录（ERROR 级别写入 logs/app.log）
 ├── .agents/
 └── README.md
 ```
@@ -185,4 +248,4 @@ index-score/
 | 配置格式 | YAML | 可读性强，支持注释，比 JSON 友好 |
 | 模板引擎 | Jinja2 | 报告模板化，与 Python 生态契合 |
 | 数据获取 | 手动触发 | 需求文档明确：取消定时任务，仅手动触发 |
-| 缓存策略 | 无持久缓存 | 需求文档明确：关闭 Agent 后数据不保留 |
+| 数据持久化 | 无 | 关闭后数据不保留，每次运行重新拉取 |

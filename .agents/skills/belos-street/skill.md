@@ -30,9 +30,13 @@ tags: [conventions, best-practices, coding-style]
 
 - LLM 编码指南 → See [llm-coding-guidelines](reference/llm-coding-guidelines.md)
 
+## Python Conventions
+
+- Python 项目规范 → See [python-conventions](reference/python-conventions.md)
+
 ## Quick Reference
 
-### 命名风格速查表
+### 命名风格速查表（JS/TS）
 
 | 类型 | 风格 | 示例 |
 |------|------|------|
@@ -42,6 +46,16 @@ tags: [conventions, best-practices, coding-style]
 | 接口/类型 | PascalCase | `UserInfo`, `ApiResponse` |
 | 常量 | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
 | 布尔值 | is/has/can 前缀 | `isActive`, `hasPermission` |
+
+### 命名风格速查表（Python）
+
+| 类型 | 风格 | 示例 |
+|------|------|------|
+| 文件/目录 | snake_case | `fetcher.py`, `score_table.py` |
+| 函数/变量 | snake_case | `fetch_quote`, `score_factor` |
+| 类 | PascalCase | `IndexScore`, `ScoringTemplate` |
+| 常量 | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
+| 布尔值 | is/has/can 前缀 | `is_valid`, `has_data` |
 
 ### 核心原则
 

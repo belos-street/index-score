@@ -98,29 +98,54 @@ indexes:
   - code: "000922"
     name: "中证红利"
     market: "CN"
+    template: "dividend"
   - code: "930955"
     name: "中证红利低波"
     market: "CN"
+    template: "dividend"
   - code: "930735"
     name: "标普中国红利低波50"
     market: "CN"
+    template: "dividend"
   - code: "399378"
     name: "国证价值100"
     market: "CN"
+    template: "value"
   - code: "980092"
     name: "国证自由现金流"
     market: "CN"
+    template: "value"
   - code: "IXIC"
     name: "纳指"
     market: "US"
+    template: "growth"
   - code: "SPX"
     name: "标普500"
     market: "US"
+    template: "balanced"
 
 scoring:
-  dividend_yield_weight: 0.40
-  pe_weight: 0.35
-  price_position_weight: 0.25
+  templates:
+    dividend:
+      factors:
+        - { field: "dividend_yield_percentile_5y", weight: 0.40 }
+        - { field: "pe_percentile_5y", weight: 0.35 }
+        - { field: "price_position_percentile_3y", weight: 0.25 }
+    value:
+      factors:
+        - { field: "pe_percentile_5y", weight: 0.40 }
+        - { field: "pb_percentile_5y", weight: 0.30 }
+        - { field: "dividend_yield_percentile_5y", weight: 0.30 }
+    growth:
+      factors:
+        - { field: "pe_percentile_5y", weight: 0.50 }
+        - { field: "price_position_percentile_3y", weight: 0.35 }
+        - { field: "dividend_yield_percentile_5y", weight: 0.15 }
+    balanced:
+      factors:
+        - { field: "pe_percentile_5y", weight: 0.35 }
+        - { field: "dividend_yield_percentile_5y", weight: 0.35 }
+        - { field: "price_position_percentile_3y", weight: 0.30 }
   pe_percentile_years: 5
   dividend_yield_percentile_years: 5
   price_position_years: 3
@@ -142,6 +167,11 @@ llm:
   model: "deepseek-chat"
   api_key: ""
   base_url: "https://api.deepseek.com"
+  timeout: 30
+
+report:
+  show_detail: true
+  sort_by: "score"
 ```
 
 ## 目录初始化脚本
@@ -150,6 +180,7 @@ llm:
 
 ```bash
 mkdir -p report
+mkdir -p logs
 mkdir -p src/index_score/{data,scoring,llm,report,config,ui/widgets}
 mkdir -p tests
 ```
