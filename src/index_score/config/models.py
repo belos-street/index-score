@@ -12,6 +12,7 @@ class IndexInfo:
     name: str
     market: str
     template: str
+    lixinger_code: str | None = None
 
 
 @dataclass
@@ -65,6 +66,20 @@ class LLMConfig:
 
 
 @dataclass
+class LixingerConfig:
+    """理杏仁 Open API 配置。"""
+
+    token_env: str
+    base_url: str
+    timeout: int
+
+    @property
+    def token(self) -> str:
+        """从环境变量读取 Token。"""
+        return os.environ.get(self.token_env, "")
+
+
+@dataclass
 class ReportConfig:
     """报告输出配置。"""
 
@@ -80,7 +95,8 @@ class AppConfig:
     scoring: ScoringConfig
     score_ranges: list[ScoreRange]
     llm: LLMConfig
-    report: ReportConfig
+    lixinger: LixingerConfig | None = None
+    report: ReportConfig | None = None
 
 
 @dataclass

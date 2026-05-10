@@ -52,6 +52,20 @@ report:
 """
 
 
+_LIXINGER_YAML_BLOCK = (
+    "lixinger:\n"
+    '  token_env: "LIXINGER_TOKEN"\n'
+    '  base_url: "https://open.lixinger.com/api"\n'
+    "  timeout: 30\n"
+    "\n"
+    "report:"
+)
+
+
+def _min_config_with_lixinger() -> str:
+    return _min_config_yaml().replace("report:", _LIXINGER_YAML_BLOCK)
+
+
 class TestLoadConfig:
     def test_load_minimal_config(self, tmp_path: Path) -> None:
         config_path = _write_yaml(tmp_path, "config.yaml", _min_config_yaml())
@@ -257,6 +271,111 @@ class TestLLMConfig:
         assert cfg.llm.model == "deepseek-chat"
         assert cfg.llm.base_url == "https://api.deepseek.com"
         assert cfg.llm.timeout == 30
+
+
+class TestLixingerConfig:
+    def test_lixinger_parsed_from_config(self, tmp_path: Path) -> None:
+        config_path = _write_yaml(tmp_path, "config.yaml", _min_config_with_lixinger())
+        cfg = load_config(config_path)
+
+        assert cfg.lixinger is not None
+        assert cfg.lixinger.token_env == "LIXINGER_TOKEN"
+        assert cfg.lixinger.base_url == "https://open.lixinger.com/api"
+        assert cfg.lixinger.timeout == 30
+
+    def test_lixinger_token_from_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config_path = _write_yaml(tmp_path, "config.yaml", _min_config_with_lixinger())
+        cfg = load_config(config_path)
+
+        assert cfg.lixinger is not None
+        assert cfg.lixinger.token == ""
+
+        monkeypatch.setenv("LIXINGER_TOKEN", "test-token-123")
+        assert cfg.lixinger.token == "test-token-123"
+
+    def test_lixinger_absent_returns_none(self, tmp_path: Path) -> None:
+        config_path = _write_yaml(tmp_path, "config.yaml", _min_config_yaml())
+        cfg = load_config(config_path)
+
+        assert cfg.lixinger is None
+
+    def test_lixinger_defaults(self, tmp_path: Path) -> None:
+        yaml_content = _min_config_yaml().replace(
+            "report:",
+            'lixinger:\n  token_env: "MY_TOKEN"\n\nreport:',
+        )
+        config_path = _write_yaml(tmp_path, "config.yaml", yaml_content)
+        cfg = load_config(config_path)
+
+        assert cfg.lixinger is not None
+        assert cfg.lixinger.token_env == "MY_TOKEN"
+        assert cfg.lixinger.base_url == "https://open.lixinger.com/api"
+        assert cfg.lixinger.timeout == 30
+
+
+class TestIndexLixingerCode:
+    def test_lixinger_code_parsed(self, tmp_path: Path) -> None:
+        yaml_content = """\
+indexes:
+  - code: "000922"
+    name: "中证红利"
+    market: "CN"
+    template: "dividend"
+    lixinger_code: "000922"
+  - code: "IXIC"
+    name: "纳指"
+    market: "US"
+    template: "growth"
+
+scoring:
+  templates:
+    dividend:
+      factors:
+        - { field: "pe_percentile_5y", weight: 1.0 }
+  pe_percentile_years: 5
+  dividend_yield_percentile_years: 5
+  price_position_years: 3
+
+score_ranges:
+  - max_percentile: 100
+    score: 9
+
+llm:
+  provider: "deepseek"
+  model: "deepseek-chat"
+  api_key_env: "TEST_API_KEY"
+  base_url: ""
+  timeout: 30
+
+report:
+  show_detail: true
+  sort_by: "score"
+"""
+        config_path = _write_yaml(tmp_path, "config.yaml", yaml_content)
+        cfg = load_config(config_path)
+
+        assert cfg.indexes[0].lixinger_code == "000922"
+        assert cfg.indexes[1].lixinger_code is None
+
+    def test_lixinger_code_absent_defaults_none(self, tmp_path: Path) -> None:
+        config_path = _write_yaml(tmp_path, "config.yaml", _min_config_yaml())
+        cfg = load_config(config_path)
+
+        assert cfg.indexes[0].lixinger_code is None
+
+    def test_real_config_has_lixinger_codes(self) -> None:
+        project_root = Path(__file__).parent.parent
+        config_path = project_root / "config.yaml"
+        if not config_path.exists():
+            pytest.skip("project config.yaml not found")
+
+        cfg = load_config(config_path)
+
+        assert cfg.indexes[0].lixinger_code == "000922"
+        assert cfg.indexes[1].lixinger_code == "930955"
+        assert cfg.indexes[4].lixinger_code is None
 
 
 class TestConfigErrors:

@@ -4,14 +4,26 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import akshare as ak  # type: ignore[import-untyped]
 import pandas as pd  # type: ignore[import-untyped]
 
 from index_score.config.models import IndexInfo, IndexQuote, IndexValuation
+from index_score.data.exceptions import FetchError
+
+if TYPE_CHECKING:
+    from index_score.data.lixinger import LixingerClient
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "FetchError",
+    "fetch_price_history",
+    "fetch_quote",
+    "fetch_valuation",
+    "LixingerClient",
+]
 
 US_SYMBOL_MAP: dict[str, str] = {
     "IXIC": ".IXIC",
@@ -19,10 +31,6 @@ US_SYMBOL_MAP: dict[str, str] = {
     "DJI": ".DJI",
     "NDX": ".NDX",
 }
-
-
-class FetchError(Exception):
-    """数据拉取失败。"""
 
 
 def _resolve_a_share_symbol(code: str) -> str:
@@ -49,18 +57,6 @@ def _to_str_date(value: Any) -> str:
     if isinstance(value, datetime):
         return value.strftime("%Y-%m-%d")
     return str(value)[:10]
-
-
-def _to_optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    if result == 0.0:
-        return 0.0
-    return result
 
 
 def fetch_price_history(
@@ -181,33 +177,38 @@ def fetch_quote(index_info: IndexInfo) -> IndexQuote:
     return quotes[-1]
 
 
-def fetch_valuation(index_info: IndexInfo) -> IndexValuation:
-    code = index_info.code
-    market = index_info.market
-    name = index_info.name
+def fetch_valuation(
+    index_info: IndexInfo,
+    client: LixingerClient | None = None,
+) -> IndexValuation:
+    """通过理杏仁 API 拉取指数估值数据。
 
-    if market != "CN":
-        return IndexValuation(
-            code=code,
-            date=datetime.now().strftime("%Y-%m-%d"),
-        )
+    Args:
+        index_info: 指数信息。
+        client: 理杏仁 API 客户端。如果为 None，尝试使用默认配置创建。
 
-    try:
-        df = ak.stock_zh_index_value_csindex(symbol=code)
-    except Exception as exc:
-        raise FetchError(f"拉取估值数据失败: {code} ({name}), error={exc}") from exc
+    Returns:
+        包含估值绝对值和分位点的 IndexValuation 实例。
 
-    if df is None or df.empty:
-        raise FetchError(f"估值数据为空: {code} ({name})")
-
-    row = df.iloc[0]
-    pe_ttm = _to_optional_float(row.get("市盈率1"))
-    dividend_yield = _to_optional_float(row.get("股息率1"))
-    date = _to_str_date(row.get("日期", datetime.now()))
-
-    return IndexValuation(
-        code=code,
-        date=date,
-        pe_ttm=pe_ttm,
-        dividend_yield=dividend_yield,
+    Raises:
+        FetchError: 理杏仁 Token 未配置或 API 返回异常。
+    """
+    from index_score.data.lixinger import (
+        LixingerClient as _LixingerClient,
     )
+    from index_score.data.lixinger import (
+        fetch_valuation as _fetch_valuation,
+    )
+
+    if client is None:
+        try:
+            from index_score.config.loader import load_config
+
+            cfg = load_config()
+            if cfg.lixinger is None:
+                raise FetchError("理杏仁配置未在 config.yaml 中定义")
+            client = _LixingerClient(cfg.lixinger)
+        except Exception as exc:
+            raise FetchError(f"无法创建理杏仁客户端: {exc}") from exc
+
+    return _fetch_valuation(client, index_info)

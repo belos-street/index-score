@@ -13,6 +13,7 @@ from index_score.config.models import (
     AppConfig,
     FactorConfig,
     IndexInfo,
+    LixingerConfig,
     LLMConfig,
     ReportConfig,
     ScoreRange,
@@ -65,17 +66,20 @@ def _parse_config(raw: dict[str, Any], path: Path) -> AppConfig:
         scoring = _parse_scoring(raw["scoring"])
         score_ranges = _parse_score_ranges(raw["score_ranges"])
         llm = _parse_llm(raw["llm"])
-        report = _parse_report(raw["report"])
     except KeyError as exc:
         raise ConfigError(f"配置文件缺少必要字段: {exc} (文件: {path})") from exc
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"配置文件字段格式错误: {exc} (文件: {path})") from exc
+
+    lixinger = _parse_lixinger(raw.get("lixinger"))
+    report = _parse_report(raw.get("report", {}))
 
     return AppConfig(
         indexes=indexes,
         scoring=scoring,
         score_ranges=score_ranges,
         llm=llm,
+        lixinger=lixinger,
         report=report,
     )
 
@@ -87,6 +91,7 @@ def _parse_indexes(items: list[dict[str, Any]]) -> list[IndexInfo]:
             name=str(item["name"]),
             market=str(item["market"]),
             template=str(item["template"]),
+            lixinger_code=item.get("lixinger_code"),
         )
         for item in items
     ]
@@ -136,4 +141,14 @@ def _parse_report(raw: dict[str, Any]) -> ReportConfig:
     return ReportConfig(
         show_detail=bool(raw.get("show_detail", True)),
         sort_by=str(raw.get("sort_by", "score")),
+    )
+
+
+def _parse_lixinger(raw: dict[str, Any] | None) -> LixingerConfig | None:
+    if raw is None:
+        return None
+    return LixingerConfig(
+        token_env=str(raw.get("token_env", "LIXINGER_TOKEN")),
+        base_url=str(raw.get("base_url", "https://open.lixinger.com/api")),
+        timeout=int(raw.get("timeout", 30)),
     )

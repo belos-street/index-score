@@ -9,11 +9,16 @@ from unittest.mock import MagicMock, patch
 import pandas as pd  # type: ignore[import-untyped]
 import pytest
 
-from index_score.config.models import IndexInfo, IndexQuote, IndexValuation
+from index_score.config.models import (
+    IndexInfo,
+    IndexQuote,
+    IndexValuation,
+    LixingerConfig,
+)
 from index_score.data.cleaner import clean_quote, clean_valuation
+from index_score.data.exceptions import FetchError
 from index_score.data.fallback import FetchResult, fetch_all, fetch_with_retry
 from index_score.data.fetcher import (
-    FetchError,
     _map_quotes,
     _resolve_a_share_symbol,
     _resolve_us_symbol,
@@ -23,14 +28,42 @@ from index_score.data.fetcher import (
     fetch_quote,
     fetch_valuation,
 )
+from index_score.data.lixinger import (
+    FUNDAMENTAL_METRICS,
+    LixingerClient,
+    _to_dividend_yield,
+    _to_optional_float,
+    _to_percentile,
+)
+from index_score.data.lixinger import (
+    fetch_valuation as lixinger_fetch_valuation,
+)
 
 
 def _cn_index() -> IndexInfo:
     return IndexInfo(code="000922", name="中证红利", market="CN", template="dividend")
 
 
+def _cn_index_with_li_code() -> IndexInfo:
+    return IndexInfo(
+        code="000922",
+        name="中证红利",
+        market="CN",
+        template="dividend",
+        lixinger_code="000922",
+    )
+
+
 def _us_index() -> IndexInfo:
     return IndexInfo(code="IXIC", name="纳指", market="US", template="growth")
+
+
+def _lixinger_config() -> LixingerConfig:
+    return LixingerConfig(
+        token_env="LIXINGER_TOKEN",
+        base_url="https://open.lixinger.com/api",
+        timeout=30,
+    )
 
 
 def _sample_a_share_df() -> pd.DataFrame:
@@ -60,21 +93,18 @@ def _sample_us_df() -> pd.DataFrame:
     )
 
 
-def _sample_valuation_df() -> pd.DataFrame:
-    return pd.DataFrame(
+def _sample_lixinger_fundamental_response() -> list[dict[str, Any]]:
+    return [
         {
-            "日期": ["2026-05-08"],
-            "指数代码": ["922"],
-            "指数中文全称": ["中证红利指数"],
-            "指数中文简称": ["中证红利"],
-            "指数英文全称": ["CSI Dividend Index"],
-            "指数英文简称": ["CSI Dividend"],
-            "市盈率1": [8.51],
-            "市盈率2": [10.01],
-            "股息率1": [4.49],
-            "股息率2": [4.87],
+            "date": "2026-05-08T00:00:00.000Z",
+            "pe_ttm.mcw": 12.5,
+            "pb.mcw": 1.3,
+            "dyr.mcw": 0.045,
+            "pe_ttm.y5.mcw.cvpos": 0.35,
+            "pb.y5.mcw.cvpos": 0.42,
+            "dyr.y5.mcw.cvpos": 0.28,
         }
-    )
+    ]
 
 
 class TestSymbolMapping:
@@ -249,38 +279,273 @@ class TestFetchQuote:
             fetch_quote(_cn_index())
 
 
+class TestLixingerHelpers:
+    def test_to_optional_float_normal(self) -> None:
+        assert _to_optional_float(3.14) == pytest.approx(3.14)
+        assert _to_optional_float(0) == pytest.approx(0.0)
+        assert _to_optional_float("2.5") == pytest.approx(2.5)
+
+    def test_to_optional_float_none_and_na(self) -> None:
+        assert _to_optional_float(None) is None
+        assert _to_optional_float("N/A") is None
+
+    def test_to_optional_float_invalid(self) -> None:
+        assert _to_optional_float("abc") is None
+
+    def test_to_percentile_converts_to_100_scale(self) -> None:
+        assert _to_percentile(0.35) == pytest.approx(35.0)
+        assert _to_percentile(0.0) == pytest.approx(0.0)
+        assert _to_percentile(1.0) == pytest.approx(100.0)
+
+    def test_to_percentile_none_and_na(self) -> None:
+        assert _to_percentile(None) is None
+        assert _to_percentile("N/A") is None
+
+    def test_to_dividend_yield_converts_to_percent(self) -> None:
+        assert _to_dividend_yield(0.045) == pytest.approx(4.5)
+        assert _to_dividend_yield(0.0) == pytest.approx(0.0)
+
+    def test_to_dividend_yield_none_and_na(self) -> None:
+        assert _to_dividend_yield(None) is None
+        assert _to_dividend_yield("N/A") is None
+
+
+class TestLixingerClient:
+    @patch.dict("os.environ", {"LIXINGER_TOKEN": "test-token"})
+    def test_init_with_env_token(self) -> None:
+        config = LixingerConfig(
+            token_env="LIXINGER_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        client = LixingerClient(config)
+        assert client._token == "test-token"
+
+    def test_init_without_token_raises(self) -> None:
+        config = LixingerConfig(
+            token_env="NONEXISTENT_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        with pytest.raises(FetchError, match="理杏仁 Token 未配置"):
+            LixingerClient(config)
+
+    @patch("index_score.data.lixinger.requests.post")
+    @patch.dict("os.environ", {"LIXINGER_TOKEN": "test-token"})
+    def test_fetch_fundamental_success(self, mock_post: Any) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "code": 1,
+            "data": _sample_lixinger_fundamental_response(),
+            "message": "success",
+        }
+        mock_post.return_value = mock_resp
+
+        config = LixingerConfig(
+            token_env="LIXINGER_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        client = LixingerClient(config)
+        data = client.fetch_fundamental(["000922"])
+
+        assert len(data) == 1
+        assert data[0]["pe_ttm.mcw"] == pytest.approx(12.5)
+        mock_post.assert_called_once()
+        call_kwargs = mock_post.call_args
+        assert call_kwargs.kwargs["json"]["token"] == "test-token"
+        assert call_kwargs.kwargs["json"]["stockCodes"] == ["000922"]
+        assert call_kwargs.kwargs["json"]["metricsList"] == FUNDAMENTAL_METRICS
+
+    @patch("index_score.data.lixinger.requests.post")
+    @patch.dict("os.environ", {"LIXINGER_TOKEN": "test-token"})
+    def test_fetch_fundamental_custom_metrics(self, mock_post: Any) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {"code": 1, "data": [], "message": "success"}
+        mock_post.return_value = mock_resp
+
+        config = LixingerConfig(
+            token_env="LIXINGER_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        client = LixingerClient(config)
+        client.fetch_fundamental(["000922"], metrics_list=["pe_ttm.mcw"])
+
+        call_kwargs = mock_post.call_args
+        assert call_kwargs.kwargs["json"]["metricsList"] == ["pe_ttm.mcw"]
+
+    @patch("index_score.data.lixinger.requests.post")
+    @patch.dict("os.environ", {"LIXINGER_TOKEN": "test-token"})
+    def test_fetch_fundamental_api_error(self, mock_post: Any) -> None:
+        from index_score.data.exceptions import LixingerAPIError
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "code": -1,
+            "data": None,
+            "message": "invalid token",
+        }
+        mock_post.return_value = mock_resp
+
+        config = LixingerConfig(
+            token_env="LIXINGER_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        client = LixingerClient(config)
+        with pytest.raises(LixingerAPIError, match="业务错误"):
+            client.fetch_fundamental(["000922"])
+
+    @patch("index_score.data.lixinger.requests.post")
+    @patch.dict("os.environ", {"LIXINGER_TOKEN": "test-token"})
+    def test_fetch_fundamental_network_error(self, mock_post: Any) -> None:
+        import requests as req_lib
+
+        from index_score.data.exceptions import LixingerAPIError
+
+        mock_post.side_effect = req_lib.ConnectionError("timeout")
+
+        config = LixingerConfig(
+            token_env="LIXINGER_TOKEN",
+            base_url="https://open.lixinger.com/api",
+            timeout=30,
+        )
+        client = LixingerClient(config)
+        with pytest.raises(LixingerAPIError, match="请求失败"):
+            client.fetch_fundamental(["000922"])
+
+
 class TestFetchValuation:
-    @patch("index_score.data.fetcher.ak.stock_zh_index_value_csindex")
-    def test_cn_valuation_success(self, mock_val: Any) -> None:
-        mock_val.return_value = _sample_valuation_df()
-        val = fetch_valuation(_cn_index())
+    def test_valuation_success(self) -> None:
+        mock_client = MagicMock(spec=LixingerClient)
+        mock_client.fetch_fundamental.return_value = (
+            _sample_lixinger_fundamental_response()
+        )
+
+        val = lixinger_fetch_valuation(mock_client, _cn_index())
 
         assert isinstance(val, IndexValuation)
         assert val.code == "000922"
-        assert val.pe_ttm == pytest.approx(8.51)
-        assert val.dividend_yield == pytest.approx(4.49)
-        assert val.pb_lf is None
-        assert val.pe_percentile_5y is None
+        assert val.date == "2026-05-08"
+        assert val.pe_ttm == pytest.approx(12.5)
+        assert val.pe_percentile_5y == pytest.approx(35.0)
+        assert val.pb_lf == pytest.approx(1.3)
+        assert val.pb_percentile_5y == pytest.approx(42.0)
+        assert val.dividend_yield == pytest.approx(4.5)
+        assert val.dividend_yield_percentile_5y == pytest.approx(28.0)
 
-    def test_us_valuation_returns_empty(self) -> None:
-        val = fetch_valuation(_us_index())
+    def test_valuation_uses_lixinger_code(self) -> None:
+        mock_client = MagicMock(spec=LixingerClient)
+        mock_client.fetch_fundamental.return_value = (
+            _sample_lixinger_fundamental_response()
+        )
+
+        index = IndexInfo(
+            code="000922",
+            name="中证红利",
+            market="CN",
+            template="dividend",
+            lixinger_code="000922",
+        )
+        lixinger_fetch_valuation(mock_client, index)
+
+        call_args = mock_client.fetch_fundamental.call_args
+        assert call_args[0][0] == ["000922"]
+
+    def test_valuation_falls_back_to_code(self) -> None:
+        mock_client = MagicMock(spec=LixingerClient)
+        mock_client.fetch_fundamental.return_value = (
+            _sample_lixinger_fundamental_response()
+        )
+
+        index = IndexInfo(
+            code="000922",
+            name="中证红利",
+            market="CN",
+            template="dividend",
+        )
+        lixinger_fetch_valuation(mock_client, index)
+
+        call_args = mock_client.fetch_fundamental.call_args
+        assert call_args[0][0] == ["000922"]
+
+    def test_valuation_empty_data_raises(self) -> None:
+        mock_client = MagicMock(spec=LixingerClient)
+        mock_client.fetch_fundamental.return_value = []
+
+        with pytest.raises(FetchError, match="未返回数据"):
+            lixinger_fetch_valuation(mock_client, _cn_index())
+
+    def test_valuation_partial_none_fields(self) -> None:
+        mock_client = MagicMock(spec=LixingerClient)
+        mock_client.fetch_fundamental.return_value = [
+            {
+                "date": "2026-05-08T00:00:00.000Z",
+                "pe_ttm.mcw": 12.5,
+                "pb.mcw": None,
+                "dyr.mcw": None,
+                "pe_ttm.y5.mcw.cvpos": 0.35,
+                "pb.y5.mcw.cvpos": None,
+                "dyr.y5.mcw.cvpos": None,
+            }
+        ]
+
+        val = lixinger_fetch_valuation(mock_client, _cn_index())
+
+        assert val.pe_ttm == pytest.approx(12.5)
+        assert val.pe_percentile_5y == pytest.approx(35.0)
+        assert val.pb_lf is None
+        assert val.pb_percentile_5y is None
+        assert val.dividend_yield is None
+        assert val.dividend_yield_percentile_5y is None
+
+
+class TestFetchValuationWithConfig:
+    def test_fetch_valuation_without_client_uses_config(
+        self,
+    ) -> None:
+        mock_lixinger_client = MagicMock(spec=LixingerClient)
+        mock_lixinger_client.fetch_fundamental.return_value = (
+            _sample_lixinger_fundamental_response()
+        )
+
+        mock_cfg = MagicMock()
+        mock_cfg.lixinger = _lixinger_config()
+
+        with (
+            patch(
+                "index_score.config.loader.load_config",
+                return_value=mock_cfg,
+            ),
+            patch(
+                "index_score.data.lixinger.LixingerClient",
+                return_value=mock_lixinger_client,
+            ),
+        ):
+            val = fetch_valuation(_cn_index())
 
         assert isinstance(val, IndexValuation)
-        assert val.code == "IXIC"
-        assert val.pe_ttm is None
-        assert val.dividend_yield is None
-        assert val.pb_lf is None
+        assert val.code == "000922"
+        assert val.pe_ttm == pytest.approx(12.5)
 
-    @patch("index_score.data.fetcher.ak.stock_zh_index_value_csindex")
-    def test_cn_valuation_empty_raises(self, mock_val: Any) -> None:
-        mock_val.return_value = pd.DataFrame()
-        with pytest.raises(FetchError, match="估值数据为空"):
-            fetch_valuation(_cn_index())
+    def test_fetch_valuation_no_config_raises(self) -> None:
+        mock_cfg = MagicMock()
+        mock_cfg.lixinger = None
 
-    @patch("index_score.data.fetcher.ak.stock_zh_index_value_csindex")
-    def test_cn_valuation_network_error(self, mock_val: Any) -> None:
-        mock_val.side_effect = ConnectionError("timeout")
-        with pytest.raises(FetchError, match="拉取估值数据失败"):
+        with (
+            patch(
+                "index_score.config.loader.load_config",
+                return_value=mock_cfg,
+            ),
+            pytest.raises(FetchError, match="无法创建理杏仁客户端"),
+        ):
             fetch_valuation(_cn_index())
 
 
@@ -505,7 +770,9 @@ class TestFetchAll:
             code="000922",
             date="2026-05-08",
             pe_ttm=8.5,
+            pe_percentile_5y=30.0,
             dividend_yield=4.5,
+            dividend_yield_percentile_5y=20.0,
         )
 
         result = fetch_all(_cn_index())
@@ -514,6 +781,7 @@ class TestFetchAll:
         assert len(result.quotes) == 1
         assert result.quotes[0].close == pytest.approx(4050.0)
         assert result.valuation.pe_ttm == pytest.approx(8.5)
+        assert result.valuation.pe_percentile_5y == pytest.approx(30.0)
 
     @patch("index_score.data.fallback.fetch_valuation")
     @patch("index_score.data.fallback.fetch_price_history")
@@ -552,3 +820,35 @@ class TestFetchAll:
         with pytest.raises(FetchError, match="行情拉取失败"):
             fetch_all(_cn_index())
         assert mock_price.call_count == 3
+
+    @patch("index_score.data.fallback.fetch_valuation")
+    @patch("index_score.data.fallback.fetch_price_history")
+    def test_fetch_all_passes_lixinger_client(
+        self, mock_price: Any, mock_val: Any
+    ) -> None:
+        mock_price.return_value = [
+            IndexQuote(
+                code="000922",
+                name="中证红利",
+                date="2026-05-08",
+                open=100.0,
+                close=100.0,
+                high=100.0,
+                low=100.0,
+                volume=100000.0,
+                adj_close=100.0,
+            )
+        ]
+        mock_val.return_value = IndexValuation(
+            code="000922",
+            date="2026-05-08",
+            pe_ttm=8.5,
+        )
+
+        mock_client = MagicMock(spec=LixingerClient)
+        fetch_all(_cn_index(), lixinger_client=mock_client)
+
+        mock_val.assert_called_once_with(
+            _cn_index(),
+            client=mock_client,
+        )
