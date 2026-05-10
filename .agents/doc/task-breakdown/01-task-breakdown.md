@@ -94,7 +94,7 @@
 
 ### Task 4：数据清洗 + 兜底策略
 
-**目标**：统一数据格式，AkShare 失败时切换 Tushare
+**目标**：统一数据格式，估值数据走理杏仁 API，行情数据走 AkShare，带重试兜底
 
 **前置**：Task 3
 
@@ -105,14 +105,14 @@
   - 缺失值处理逻辑
 - src/index_score/data/fallback.py
   - fetch_with_fallback(index_code: str) → tuple[IndexQuote, IndexValuation]
-  - AkShare 失败 → 自动重试 3 次（间隔 3 秒） → 切换 Tushare
-  - 两者都失败 → 抛出 FetchError
+  - 估值失败 → 自动重试 3 次（间隔 3 秒） → 降级（缺失因子权重自动重分配）
+  - 行情失败 → 自动重试 3 次 → 抛出 FetchError
 - 编写 tests/test_data.py 补充测试
 
 **验收**：
-- [ ] AkShare 和 Tushare 返回格式不同的数据能统一为相同结构
-- [ ] Mock AkShare 失败时，能正确切换到 Tushare
-- [ ] 两者都失败时抛出 FetchError
+- [ ] 理杏仁 API 和 AkShare 返回格式能统一为相同结构
+- [ ] Mock 理杏仁 API 失败时，能正确降级为缺失因子
+- [ ] 行情和估值都失败时抛出 FetchError
 - [ ] 测试通过
 
 ---

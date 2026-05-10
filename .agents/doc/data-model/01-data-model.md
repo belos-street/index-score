@@ -41,7 +41,7 @@ class IndexInfo:
 
 ## 2. 原始行情数据
 
-从 AkShare/Tushare 拉取后，清洗为统一格式：
+从 AkShare 拉取行情后，清洗为统一格式：
 
 ```python
 @dataclass
@@ -166,7 +166,7 @@ class AppConfig:
 class ReportData:
     report_date: str                    # "YYYY-MM-DD"
     update_time: str                    # "HH:MM"
-    data_source: str                    # "AkShare" / "Tushare"
+    data_source: str                    # "理杏仁 API" / "AkShare"
     index_scores: list[IndexScore]      # 所有指数打分结果
     llm_interpretations: dict[str, str] # 指数代码 → LLM 解读文本
     summary: ReportSummary

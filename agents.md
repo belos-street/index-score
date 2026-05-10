@@ -19,7 +19,7 @@
 | 层级    | 技术                                             |
 | ----- | ---------------------------------------------- |
 | 语言    | Python 3.10+                                    |
-| 数据    | AkShare / Tushare + Pandas                     |
+| 数据    | 理杏仁 Open API（估值）+ AkShare（行情）+ Pandas  |
 | Agent | LangChain + langchain-openai (OpenAI / DeepSeek / 通义千问) |
 | 终端 UI | Textual + Rich                                 |
 | 报告    | Markdown + Jinja2                              |
@@ -55,7 +55,8 @@ index-score/
 │   │   ├── architecture/
 │   │   │   └── 01-architecture-design.md
 │   │   ├── data-model/
-│   │   │   └── 01-data-model.md
+│   │   ├── 01-data-model.md
+│   │   └── 02-lixinger-api-integration.md
 │   │   ├── engineering/
 │   │   │   └── 01-engineering-setup.md
 │   │   └── task-breakdown/
@@ -145,12 +146,26 @@ index-score/
 
 **当需要编写数据处理代码、理解数据传递格式时，应参考此文档。**
 
+#### data-model/02-lixinger-api-integration.md — 理杏仁 API 接入方案
+
+理杏仁 Open API 的完整接入方案，定义了：
+
+- API 接口规范（`/api/cn/index/fundamental`）和 metricsList 格式
+- 本项目所需的 metricsList 参数（PE/PB/股息率 + 当前值 + 5年分位点）
+- 返回数据示例（含分位点详细统计）
+- IndexValuation 字段与理杏仁 API 的映射关系
+- LixingerClient 代码实现指引
+- fetcher.py 和 fallback.py 的重构方案
+- 错误处理策略
+
+**当需要实现理杏仁 API 调用、理解估值数据来源时，应参考此文档。**
+
 #### engineering/01-engineering-setup.md — 工程基建
 
 项目初始化与开发工具配置，定义了：
 
 - Python 版本要求（3.10+）
-- 核心依赖清单（akshare、tushare、pandas、langchain、textual 等）
+- 核心依赖清单（理杏仁 API、akshare、requests、pandas、langchain、textual 等）
 - pyproject.toml 完整模板
 - config.yaml 配置文件模板
 - 开发工具配置（ruff lint/format、mypy、pytest）
@@ -164,8 +179,8 @@ index-score/
 
 - 阶段一：项目脚手架搭建
 - 阶段二：配置加载模块
-- 阶段三：AkShare 数据拉取器
-- 阶段四：数据清洗 + 兜底策略
+- 阶段三：数据拉取器（行情 AkShare + 估值理杏仁 API）
+- 阶段四：数据清洗 + 兜底策略（理杏仁 API 容灾）
 - 阶段五：模板化打分模型
 - 阶段六：LangChain Agent + 投资解读生成
 - 阶段七：Markdown 报告生成
@@ -174,7 +189,7 @@ index-score/
 
 每个任务包含：目标、前置依赖、执行内容、验收标准（DoD checklist）
 
-**当需要开始编码实现时，应按此文档的任务顺序依次执行。**
+**当需要开始编码实现时，应按此文档的任务顺序依次执行。注意 Task 3/4 已因数据源切换（理杏仁 API）需要重构，详见 todo.md 和 data-model/02-lixinger-api-integration.md。**
 
 ***
 

@@ -31,7 +31,7 @@
 
 ### 2.2 辅助功能
 
-- **数据获取**：AkShare（首选）/ Tushare（备选），手动触发，详见 [data-model/01-data-model.md](data-model/01-data-model.md)
+- **数据获取**：理杏仁 Open API（估值数据首选）/ AkShare（行情数据），手动触发，详见 [data-model/02-lixinger-api-integration.md](data-model/02-lixinger-api-integration.md)
 - **异常处理**：API 重试、权重自动调整、兜底提示，详见各子文档
 
 ### 2.3 预设指数
@@ -55,7 +55,7 @@
 | 层级 | 技术 | 用途 |
 |------|------|------|
 | 语言 | Python 3.10+ | - |
-| 数据 | AkShare / Tushare + Pandas | 指数行情和估值数据拉取、清洗 |
+| 数据 | 理杏仁 Open API + AkShare + Pandas | 估值数据（PE/PB/股息率/分位点）+ 行情数据 |
 | Agent | LangChain + langchain-openai | LLM Agent 构建，工具封装 |
 | 终端 UI | Textual + Rich | 交互式终端界面 |
 | 报告 | Jinja2 + Markdown | 报告模板化生成 |
@@ -117,5 +117,6 @@ V1 完成后优先实现仓位配置建议，再实现自然语言问答。
 | 打分模型 | [scoring/01-scoring-model.md](scoring/01-scoring-model.md) | 4 种打分模板定义、因子选择理由、Skill 关联、计算规则 |
 | 架构设计 | [architecture/01-architecture-design.md](architecture/01-architecture-design.md) | 6 层模块划分、数据流、目录结构、关键设计决策 |
 | 数据模型 | [data-model/01-data-model.md](data-model/01-data-model.md) | 核心 dataclass 定义、字段规范、模块间数据流契约 |
+| 理杏仁接入 | [data-model/02-lixinger-api-integration.md](data-model/02-lixinger-api-integration.md) | 理杏仁 API 接口规范、metricsList 格式、接入方案 |
 | 工程基建 | [engineering/01-engineering-setup.md](engineering/01-engineering-setup.md) | pyproject.toml、依赖清单、config.yaml 模板、开发工具配置 |
 | 任务拆解 | [task-breakdown/01-task-breakdown.md](task-breakdown/01-task-breakdown.md) | 9 个可执行任务、依赖关系、验收标准 |

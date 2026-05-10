@@ -387,10 +387,14 @@ class TestCleanValuation:
 
     def test_zero_values_become_none(self) -> None:
         raw = IndexValuation(
-            code="IXIC", date="2026-05-08",
-            pe_ttm=0.0, pe_percentile_5y=0.0,
-            pb_lf=0.0, pb_percentile_5y=0.0,
-            dividend_yield=0.0, dividend_yield_percentile_5y=0.0,
+            code="IXIC",
+            date="2026-05-08",
+            pe_ttm=0.0,
+            pe_percentile_5y=0.0,
+            pb_lf=0.0,
+            pb_percentile_5y=0.0,
+            dividend_yield=0.0,
+            dividend_yield_percentile_5y=0.0,
         )
         cleaned = clean_valuation(raw)
         assert cleaned.pe_ttm is None

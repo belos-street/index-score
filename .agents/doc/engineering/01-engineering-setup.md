@@ -26,8 +26,8 @@
 
 | 包 | 用途 | 版本约束 |
 |---|------|---------|
-| akshare | 财经数据 API（首选） | >=1.14 |
-| tushare | 财经数据 API（备选） | >=1.4 |
+| requests | 理杏仁 API HTTP 调用 | >=2.28 |
+| akshare | 行情数据 API（历史价格） | >=1.14 |
 | pandas | 数据处理 | >=2.0 |
 | langchain | LLM Agent 框架 | >=0.3 |
 | langchain-openai | OpenAI/兼容 API 集成 | >=0.2 |
@@ -35,6 +35,7 @@
 | rich | 终端美化 | >=13.0 |
 | pyyaml | 配置文件解析 | >=6.0 |
 | jinja2 | 报告模板引擎 | >=3.1 |
+| python-dotenv | .env 环境变量加载 | >=1.0 |
 
 ### 开发依赖
 
@@ -55,8 +56,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
+    "requests>=2.28",
     "akshare>=1.14",
-    "tushare>=1.4",
     "pandas>=2.0",
     "langchain>=0.3",
     "langchain-openai>=0.2",
@@ -64,6 +65,7 @@ dependencies = [
     "rich>=13.0",
     "pyyaml>=6.0",
     "jinja2>=3.1",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

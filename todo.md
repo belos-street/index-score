@@ -4,15 +4,25 @@
 
 ---
 
-## ⚠️ 已知问题：估值数据残缺
+## 数据源方案：理杏仁 Open API（2026-05-10 确定）
 
-> 详细分析和 Tushare 迁移方案见：[data-model/02-data-gap-and-tushare-migration.md](.agents/doc/data-model/02-data-gap-and-tushare-migration.md)
+> 详细方案见：[data-model/02-lixinger-api-integration.md](.agents/doc/data-model/02-lixinger-api-integration.md)
 
-**现状**：AkShare 没有任何一个接口能为我们的指数提供完整的 PE/PB/股息率 5 年历史数据（`index_value_hist_funddb` 已被移除）。当前仅中证红利和中证红利低波可通过 csindex 拿到 PE，其余因子和指数全部缺失。
+**结论**：经过 AkShare / Tushare / 理杏仁三个数据源的全面测试，**理杏仁 Open API 是唯一能完美支持本项目的数据源**。
 
-**当前策略**：采用降级打分，先跑通 MVP 流程。打分模块内置了缺失因子的权重自动重分配逻辑，不影响 Task 5-9 的开发。
+**理杏仁优势**：
+- 一个 API 调用同时返回 PE/PB/股息率 + 5 年分位点 + 最大/最小/20%/50%/80% 分位值
+- 覆盖所有 A 股指数（中证、国证、策略指数等），不像 Tushare `index_dailybasic` 只覆盖 5 个大指数
+- 支持时间范围查询（日频数据）、批量查询（最多 100 个指数/次）
+- 分位点直接返回，无需自己从历史数据计算
 
-**后续行动**：购买 Tushare Pro token 后，按 [迁移指南](.agents/doc/data-model/02-data-gap-and-tushare-migration.md#4-tushare-pro-接入方案后续迁移) 补充缺失因子。预计 5 个 A 股/ETF 指数可覆盖完整的三因子数据。
+**其他数据源的问题**：
+- AkShare：无估值历史接口（`index_value_hist_funddb` 已被移除），仅 csindex 可拿 2 个指数的 PE
+- Tushare Pro `index_dailybasic`：仅覆盖 5 个宽基指数（上证/深证/沪深300/中证500/创业板），策略指数和 ETF 全部返回空
+
+**数据层架构**：行情数据（AkShare）+ 估值数据（理杏仁 API）双源并行
+
+**Task 3/4 需要重构**：估值拉取逻辑需从 AkShare csindex 重写为理杏仁 API 调用，fallback 策略相应简化。
 
 ---
 
@@ -44,37 +54,43 @@
 
 ---
 
-## Task 3：AkShare 数据拉取器
+## Task 3：数据拉取器（需重构）
 
-- [x] 实现 `src/index_score/data/fetcher.py`
-  - [x] `fetch_quote(index_code) → IndexQuote`
-  - [x] `fetch_valuation(index_code) → IndexValuation`
-  - [x] `fetch_price_history(index_code, years) → list[IndexQuote]`
-- [x] 数据字段映射：AkShare 返回列名 → `IndexQuote` / `IndexValuation` 字段
-- [x] 网络异常处理：超时、返回空数据、字段缺失
-- [x] 编写 `tests/test_data.py`：Mock AkShare 返回，验证字段映射和异常处理
-- [x] 验收：能拉取一个 A 股指数数据
-- [x] 验收：能拉取一个美股指数数据
-- [x] 验收：`pytest tests/test_data.py` 通过
+> 原方案基于 AkShare，估值数据严重残缺。现确定使用理杏仁 Open API 作为估值数据源。
+
+- [x] 行情拉取（保留 AkShare）
+  - [x] `fetch_quote(index_info) → IndexQuote`（最新行情）
+  - [x] `fetch_price_history(index_info, years) → list[IndexQuote]`（历史行情）
+- [ ] 估值拉取（重写为理杏仁 API）
+  - [ ] 实现 `src/index_score/data/lixinger.py`：理杏仁 API 客户端
+    - [ ] `LixingerClient.__init__(token)` 初始化
+    - [ ] `fetch_index_info(stock_codes) → list[dict]` 指数基本信息
+    - [ ] `fetch_fundamental(stock_codes, date, metrics_list) → list[dict]` 指数基本面
+    - [ ] `fetch_fundamental_range(stock_code, start_date, end_date, metrics_list) → list[dict]` 时间范围数据
+  - [ ] 重写 `fetch_valuation()` 调用理杏仁 API
+    - [ ] 请求 `pe_ttm.mcw`, `pb.mcw`, `dyr.mcw`（当前值）
+    - [ ] 请求 `pe_ttm.y5.mcw.cvpos`, `pb.y5.mcw.cvpos`, `dyr.y5.mcw.cvpos`（5年分位）
+  - [ ] config.yaml 新增 `lixinger.token` 配置项
+  - [ ] `.env` 新增 `LIXINGER_TOKEN`
+- [ ] 更新 `tests/test_data.py`：Mock 理杏仁 API 返回
+- [ ] 验收：能通过理杏仁 API 拉取指数 PE/PB/股息率 + 分位点
+- [ ] 验收：`pytest tests/test_data.py` 通过
 
 ---
 
-## Task 4：数据清洗 + 兜底策略
+## Task 4：数据清洗 + 兜底策略（需调整）
 
-- [x] 实现 `src/index_score/data/cleaner.py`
-  - [x] `clean_quote(raw: IndexQuote) → IndexQuote`（OHLC 缺失回退、high/low 互换、NaN volume）
-  - [x] `clean_valuation(raw: IndexValuation) → IndexValuation`（`0.0` → `None`、负值 PE/PB → `None`）
-  - [x] `IndexValuation` 字段类型改为 `float | None`（`None` = 无数据，打分模块跳过重新分配权重）
-  - [x] `fetcher.py` 新增 `_to_optional_float()`，估值缺失返回 `None` 而非 `0.0`
-- [x] 实现 `src/index_score/data/fallback.py`
-  - [x] `fetch_with_retry(fn, *args) → T`（通用重试，3 次，间隔 3 秒）
-  - [x] `fetch_all(index_info, price_years=3) → FetchResult`（行情 + 估值拉取 + 清洗）
-  - [x] 估值失败不阻断，返回空估值（`pe_ttm=None`）
-  - [ ] Tushare 数据源切换（待购买 token 后补充，见 [迁移指南](.agents/doc/data-model/02-data-gap-and-tushare-migration.md)）
-- [x] 补充 `tests/test_data.py`：新增 `TestCleanQuote`、`TestCleanValuation`、`TestFetchWithRetry`、`TestFetchAll`（共 17 个用例）
-- [x] 验收：`pytest tests/test_data.py` 通过（42 个用例）
-- [x] 验收：`ruff check` 通过
-- [x] 全量测试 `pytest` 通过（55 个用例）
+> cleaner.py 通用逻辑保留，fallback 策略简化（估值走理杏仁，行情走 AkShare，不再需要 Tushare 切换）。
+
+- [x] `cleaner.py` 保留不变
+  - [x] `clean_quote()` OHLC 缺失回退、high/low 互换、NaN volume
+  - [x] `clean_valuation()` `0.0` → `None`、负值 PE/PB → `None`
+- [ ] `fallback.py` 调整
+  - [x] `fetch_with_retry()` 通用重试保留
+  - [x] `fetch_all()` 整合行情 + 估值拉取 + 清洗
+  - [ ] 估值失败不再需要 Tushare 切换，直接降级为缺失因子
+- [ ] 更新 `tests/test_data.py`：适配理杏仁 API mock
+- [ ] 验收：`pytest tests/test_data.py` 通过
 
 ---
 
@@ -180,9 +196,9 @@ Task 1 (脚手架)
   ↓
 Task 2 (配置层)
   ↓
-Task 3 (数据拉取) → Task 4 (数据清洗+兜底)
-                        ↓
-Task 5 (模板化打分) ←───┘
+Task 3 (数据拉取: AkShare行情 + 理杏仁估值) → Task 4 (数据清洗+兜底)
+                          ↓
+Task 5 (模板化打分) ←──────┘
   ↓
 Task 6 (LLM 解读)
   ↓

@@ -33,17 +33,18 @@
 
 ### 1. data — 数据获取层
 
-**职责**：从 AkShare/Tushare 拉取指数行情和估值数据，清洗为统一格式
+**职责**：从理杏仁 API 拉取指数估值数据（PE/PB/股息率/分位点），从 AkShare 拉取行情数据，清洗为统一格式
 
 **核心组件**：
-- `fetcher.py` — 数据拉取器，封装 AkShare API 调用
+- `lixinger.py` — 理杏仁 API 客户端，封装指数基本面数据查询
+- `fetcher.py` — 数据拉取器，调用理杏仁 API 获取估值 + AkShare 获取行情
 - `cleaner.py` — 数据清洗，统一字段名、处理缺失值
-- `fallback.py` — 兜底策略，AkShare 失败时切换 Tushare
+- `fallback.py` — 兜底策略，带重试的数据拉取，估值失败时降级
 
 **输入**：指数代码列表
 **输出**：标准化的 DataFrame（指数代码、日期、PE/PB/股息率/价格/各分位值）
 
-**依赖**：AkShare、Tushare、Pandas
+**依赖**：理杏仁 Open API、AkShare、requests、Pandas
 
 ### 2. scoring — 量化打分层
 
@@ -95,7 +96,7 @@
 ```markdown
 # 大盘指数量化打分报告
 
-> 生成日期：YYYY-MM-DD HH:MM | 数据来源：AkShare/Tushare
+> 生成日期：YYYY-MM-DD HH:MM | 数据来源：理杏仁 API / AkShare
 
 ## 摘要
 
@@ -133,7 +134,7 @@
 ## 数据来源与声明
 
 - 数据更新时间：YYYY-MM-DD HH:MM
-- 数据来源：AkShare（首选）/ Tushare（备选）
+- 数据来源：理杏仁 API / AkShare
 - 本报告仅供参考，不构成投资建议
 ```
 
@@ -169,9 +170,9 @@
 ```
 用户启动 App
     ↓
-data.fetcher 拉取指数数据（AkShare → Tushare 兜底）
-    ├── fetch_quote → 当日行情 + IndexValuation
-    └── fetch_price_history → 近3年历史价格（用于计算 price_position）
+data.fetcher 拉取指数数据
+    ├── 理杏仁 API → PE/PB/股息率 + 5年分位点（估值数据）
+    └── AkShare → 近3年历史价格（用于计算 price_position）
     ↓
 data.cleaner 清洗为统一 DataFrame
     ↓
@@ -198,7 +199,8 @@ index-score/
 │       ├── __init__.py
 │       ├── data/               # 数据获取层
 │       │   ├── __init__.py
-│       │   ├── fetcher.py
+│       │   ├── lixinger.py     # 理杏仁 API 客户端
+│       │   ├── fetcher.py      # 数据拉取（行情 AkShare + 估值理杏仁）
 │       │   ├── cleaner.py
 │       │   └── fallback.py
 │       ├── scoring/            # 量化打分层
@@ -249,3 +251,5 @@ index-score/
 | 模板引擎 | Jinja2 | 报告模板化，与 Python 生态契合 |
 | 数据获取 | 手动触发 | 需求文档明确：取消定时任务，仅手动触发 |
 | 数据持久化 | 无 | 关闭后数据不保留，每次运行重新拉取 |
+| 估值数据源 | 理杏仁 API | 覆盖所有 A 股指数，PE/PB/股息率 + 分位点一次返回 |
+| 行情数据源 | AkShare | 历史行情稳定可靠，用于计算价格位置 |
