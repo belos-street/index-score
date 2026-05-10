@@ -160,31 +160,31 @@
 
 ## Task 8：Textual 终端界面
 
-- [ ] 实现 `src/index_score/ui/app.py` — Textual App 主框架
-  - [ ] 标题区：Agent 名称 + 数据更新时间 + 数据来源
-  - [ ] 核心表格区：指数名称 / 当前打分 / 各因子分，按打分从低到高排序
-  - [ ] 交互操作区：R 刷新 / Enter 详情 / G 报告 / Q 退出
-  - [ ] 颜色规则：1-3 绿色 / 5 黄色 / 7-9 红色
-- [ ] 实现 `src/index_score/ui/widgets/score_table.py`
-- [ ] 实现 `src/index_score/ui/widgets/factor_detail.py`
-- [ ] 实现 `src/index_score/ui/widgets/action_bar.py`
-- [ ] 实现 `main.py` — CLI 入口，启动 Textual App
-- [ ] 验收：`python main.py` 启动终端界面
-- [ ] 验收：表格正确显示所有指数打分，颜色区分
-- [ ] 验收：快捷键可执行对应操作
-- [ ] 验收：详情展示因子分位 + LLM 解读
+- [x] 实现 `src/index_score/ui/app.py` — Textual App 主框架
+  - [x] 标题区：Agent 名称 + 数据更新时间 + 数据来源
+  - [x] 核心表格区：指数名称 / 当前打分 / 各因子分，按打分从低到高排序
+  - [x] 交互操作区：R 刷新 / Enter 详情 / G 报告 / Q 退出
+  - [x] 颜色规则：1-3 绿色 / 5 黄色 / 7-9 红色
+- [x] 实现 `src/index_score/ui/widgets/score_table.py`
+- [x] 实现 `src/index_score/ui/widgets/factor_detail.py`
+- [x] 实现 `src/index_score/ui/widgets/action_bar.py`
+- [x] 实现 `main.py` — CLI 入口，启动 Textual App
+- [x] 验收：`python main.py` 启动终端界面
+- [x] 验收：表格正确显示所有指数打分，颜色区分
+- [x] 验收：快捷键可执行对应操作
+- [x] 验收：详情展示因子分位 + LLM 解读
 
 ---
 
 ## Task 9：端到端集成测试
 
-- [ ] 完整流程测试：启动 → 拉取数据 → 打分 → LLM 解读 → 展示 → 生成报告
-- [ ] 异常场景测试：API 失败、数据缺失、LLM 超时
-- [ ] 编写集成测试脚本
-- [ ] 修复集成过程中发现的问题
-- [ ] 验收：完整流程无报错
-- [ ] 验收：报告内容正确
-- [ ] 验收：异常情况有友好提示
+- [x] 完整流程测试：启动 → 拉取数据 → 打分 → LLM 解读 → 展示 → 生成报告
+- [x] 异常场景测试：API 失败、数据缺失、LLM 超时
+- [x] 编写集成测试脚本
+- [x] 修复集成过程中发现的问题
+- [x] 验收：完整流程无报错
+- [x] 验收：报告内容正确
+- [x] 验收：异常情况有友好提示
 
 ---
 

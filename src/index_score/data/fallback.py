@@ -89,7 +89,7 @@ def _try_fetch_valuation(
     """拉取估值数据，重试 MAX_RETRIES 次。全部失败时返回空估值。"""
     try:
         return fetch_with_retry(fetch_valuation, index_info, client=client)
-    except FetchError as exc:
+    except Exception as exc:
         logger.warning(
             "估值数据拉取失败，跳过估值: %s (%s), error=%s",
             index_info.code,
