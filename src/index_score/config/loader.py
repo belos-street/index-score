@@ -121,7 +121,7 @@ def _parse_score_ranges(items: list[dict[str, Any]]) -> list[ScoreRange]:
     return [
         ScoreRange(
             max_percentile=float(item["max_percentile"]),
-            score=int(item["score"]),
+            score=float(item["score"]),
         )
         for item in items
     ]

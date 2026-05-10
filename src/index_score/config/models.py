@@ -43,10 +43,10 @@ class ScoringConfig:
 
 @dataclass
 class ScoreRange:
-    """分位→分数映射。"""
+    """分位→分数映射锚点。"""
 
     max_percentile: float
-    score: int
+    score: float
 
 
 @dataclass
@@ -131,3 +131,30 @@ class IndexValuation:
     pb_percentile_5y: float | None = None
     dividend_yield: float | None = None
     dividend_yield_percentile_5y: float | None = None
+
+
+@dataclass
+class FactorScore:
+    """单因子打分结果。"""
+
+    field: str
+    label: str
+    percentile: float
+    score: float
+    weight: float
+    original_weight: float
+
+
+@dataclass
+class IndexScore:
+    """指数综合打分结果。"""
+
+    code: str
+    name: str
+    template: str
+    date: str
+    total_score: float
+    label: str
+    factors: list[FactorScore]
+    price_position_percentile: float | None = None
+    valuation: IndexValuation | None = None

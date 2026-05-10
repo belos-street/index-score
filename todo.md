@@ -61,20 +61,19 @@
 - [x] 行情拉取（保留 AkShare）
   - [x] `fetch_quote(index_info) → IndexQuote`（最新行情）
   - [x] `fetch_price_history(index_info, years) → list[IndexQuote]`（历史行情）
-- [ ] 估值拉取（重写为理杏仁 API）
-  - [ ] 实现 `src/index_score/data/lixinger.py`：理杏仁 API 客户端
-    - [ ] `LixingerClient.__init__(token)` 初始化
-    - [ ] `fetch_index_info(stock_codes) → list[dict]` 指数基本信息
-    - [ ] `fetch_fundamental(stock_codes, date, metrics_list) → list[dict]` 指数基本面
-    - [ ] `fetch_fundamental_range(stock_code, start_date, end_date, metrics_list) → list[dict]` 时间范围数据
-  - [ ] 重写 `fetch_valuation()` 调用理杏仁 API
-    - [ ] 请求 `pe_ttm.mcw`, `pb.mcw`, `dyr.mcw`（当前值）
-    - [ ] 请求 `pe_ttm.y5.mcw.cvpos`, `pb.y5.mcw.cvpos`, `dyr.y5.mcw.cvpos`（5年分位）
-  - [ ] config.yaml 新增 `lixinger.token` 配置项
-  - [ ] `.env` 新增 `LIXINGER_TOKEN`
-- [ ] 更新 `tests/test_data.py`：Mock 理杏仁 API 返回
-- [ ] 验收：能通过理杏仁 API 拉取指数 PE/PB/股息率 + 分位点
-- [ ] 验收：`pytest tests/test_data.py` 通过
+- [x] 估值拉取（重写为理杏仁 API）
+  - [x] 实现 `src/index_score/data/lixinger.py`：理杏仁 API 客户端
+    - [x] `LixingerClient.__init__(token)` 初始化
+    - [x] `fetch_fundamental(stock_codes, date, metrics_list) → list[dict]` 指数基本面
+  - [x] 重写 `fetch_valuation()` 调用理杏仁 API
+    - [x] 请求 `pe_ttm.mcw`, `pb.mcw`, `dyr.mcw`（当前值）
+    - [x] 请求 `pe_ttm.y5.mcw.cvpos`, `pb.y5.mcw.cvpos`, `dyr.y5.mcw.cvpos`（5年分位）
+  - [x] config.yaml 新增 `lixinger` 配置项 + `lixinger_code` 指数字段
+  - [x] `models.py` 新增 `LixingerConfig` + `IndexInfo.lixinger_code`
+  - [x] `config/loader.py` 解析 lixinger 配置
+  - [x] `data/exceptions.py` 提取共享异常 `FetchError` / `LixingerAPIError`
+- [x] 更新 `tests/test_data.py`：Mock 理杏仁 API 返回
+- [x] 验收：ruff check + pytest 全部通过（79/79）
 
 ---
 
@@ -85,77 +84,77 @@
 - [x] `cleaner.py` 保留不变
   - [x] `clean_quote()` OHLC 缺失回退、high/low 互换、NaN volume
   - [x] `clean_valuation()` `0.0` → `None`、负值 PE/PB → `None`
-- [ ] `fallback.py` 调整
+- [x] `fallback.py` 调整
   - [x] `fetch_with_retry()` 通用重试保留
-  - [x] `fetch_all()` 整合行情 + 估值拉取 + 清洗
-  - [ ] 估值失败不再需要 Tushare 切换，直接降级为缺失因子
-- [ ] 更新 `tests/test_data.py`：适配理杏仁 API mock
-- [ ] 验收：`pytest tests/test_data.py` 通过
+  - [x] `fetch_all()` 整合行情 + 估值拉取 + 清洗，接受 `lixinger_client` 参数
+  - [x] 估值失败不再需要 Tushare 切换，直接降级为缺失因子
+- [x] 更新 `tests/test_data.py`：适配理杏仁 API mock
+- [x] 验收：ruff check + pytest 全部通过（79/79）
 
 ---
 
 ## Task 5：模板化打分模型
 
-- [ ] 实现 `src/index_score/scoring/templates.py`
-  - [ ] 加载 config.yaml 中的 `scoring_templates`
-  - [ ] 根据 `IndexInfo.template` 获取 `ScoringTemplate`
-- [ ] 实现 `src/index_score/scoring/rules.py`
-  - [ ] 分位 → 分数映射规则（从 `config.score_ranges` 读取）
-- [ ] 实现 `src/index_score/scoring/factor.py`
-  - [ ] `score_factor(percentile, score_ranges) → FactorScore`
-  - [ ] label 映射：1="极便宜" / 3="便宜" / 5="中性" / 7="偏贵" / 9="极贵"
-- [ ] 实现 `src/index_score/scoring/calculator.py`
-  - [ ] `calculate_price_position(adj_close, high_3y, low_3y) → PricePosition`
-  - [ ] `calculate_index_score(...) → IndexScore`（模板权重加权求和）
-  - [ ] 数据缺失时权重按比例重新分配
-- [ ] 编写 `tests/test_scoring.py`
-  - [ ] 分位边界测试（20% / 40% / 60% / 80%）
-  - [ ] 4 种模板各自的因子和权重测试
-  - [ ] 加权计算精度测试
-  - [ ] 数据缺失权重重分配测试
-- [ ] 验收：红利型 `股息率×0.4 + PE×0.35 + 价格位置×0.25`
-- [ ] 验收：价值型 `PE×0.4 + PB×0.3 + 股息率×0.3`
-- [ ] 验收：成长型 `PE×0.5 + 价格位置×0.35 + 股息率×0.15`
-- [ ] 验收：宽基型 `PE×0.35 + 股息率×0.35 + 价格位置×0.30`
-- [ ] 验收：`pytest tests/test_scoring.py` 通过
+- [x] 实现 `src/index_score/scoring/factor.py`
+  - [x] `percentile_to_score(percentile, score_ranges) → float`（分段线性插值，连续 1.0~9.0）
+  - [x] `score_to_label(score) → str`（标签映射：极便宜/便宜/中性/偏贵/极贵）
+- [x] 实现 `src/index_score/scoring/calculator.py`
+  - [x] `calculate_price_position(quotes, years) → float | None`
+  - [x] `calculate_index_score(...) → IndexScore`（模板权重加权求和）
+  - [x] 数据缺失时权重按比例重新分配
+- [x] `models.py` 新增 `FactorScore` / `IndexScore` 数据类
+- [x] `ScoreRange.score` 从 `int` 改为 `float`，`loader.py` 解析同步更新
+- [x] 编写 `tests/test_scoring.py`（26 个测试用例）
+  - [x] 插值边界 / 中点 / 四分位 / 钳位 / 自定义区间 / 精度测试
+  - [x] Label 标签映射测试
+  - [x] 价格位置：低点 / 高点 / 中点 / 空数据 / 单条 / 平坦测试
+  - [x] 4 种模板各自的因子和权重测试
+  - [x] 加权计算精度测试
+  - [x] 数据缺失权重重分配测试（1个/2个/全部缺失）
+  - [x] 分数 1.0~9.0 范围约束测试
+- [x] 验收：ruff check + pytest 全部通过（105/105）
 
 ---
 
 ## Task 6：LangChain Agent + 投资解读生成
 
-- [ ] 实现 `src/index_score/llm/prompts.py`
-  - [ ] 系统提示词：Agent 定位、打分逻辑说明、输出格式要求
-  - [ ] 解读模板：指数名 + 打分 + 因子明细 → 自然语言解读
-- [ ] 实现 `src/index_score/llm/agent.py`
-  - [ ] `build_agent(config: LLMConfig) → Agent`
-  - [ ] `generate_interpretation(index_score: IndexScore) → str`
-- [ ] 实现 `src/index_score/llm/tools.py`
-  - [ ] `get_index_score` — 查询单个或全部指数打分结果
-  - [ ] `compare_indexes` — V2 预留
-  - [ ] `get_allocation` — V2 预留
-  - [ ] `generate_report` — 生成 Markdown 报告
-- [ ] 编写 `tests/test_llm.py`：Mock LLM 返回，验证 prompt 拼接和输出格式
-- [ ] 验收：生成包含"当前打分、因子明细、估值水平、投资建议"的解读
-- [ ] 验收：支持 DeepSeek / OpenAI 切换
-- [ ] 验收：API 失败时返回兜底文本
-- [ ] 验收：`pytest tests/test_llm.py` 通过
+- [x] 实现 `src/index_score/llm/prompts.py`
+  - [x] 系统提示词：Agent 定位、打分逻辑说明、输出格式要求
+  - [x] 解读模板：指数名 + 打分 + 因子明细 → 自然语言解读（`format_index_score` + `build_interpretation_query`）
+- [x] 实现 `src/index_score/llm/agent.py`
+  - [x] `build_agent(config, scores) → (llm, tools)` — 构建 ChatOpenAI + tools
+  - [x] `interpret(llm, tools, score) → str` — Agent 方式调用（create_tool_calling_agent）
+  - [x] `interpret_direct(llm, score) → str` — 直接调用（无 tools）
+  - [x] `_build_fallback(score) → str` — API 失败/空返回时兜底文本
+- [x] 实现 `src/index_score/llm/tools.py`
+  - [x] `get_index_score` — 查询单个指数打分详情
+  - [x] `list_all_scores` — 列出所有指数打分摘要
+  - [x] `compare_indexes` — V2 预留 stub
+  - [x] `generate_report` — V2 预留 stub
+- [x] 编写 `tests/test_llm.py`：Mock LLM 返回，验证 prompt 拼接、tools、兜底（27 个测试）
+- [x] 验收：生成包含"当前打分、因子明细、估值水平、投资建议"的解读
+- [x] 验收：支持 DeepSeek / OpenAI 切换（ChatOpenAI 兼容 OpenAI 协议）
+- [x] 验收：API 失败时返回兜底文本
+- [x] 验收：`pytest tests/test_llm.py` 通过
 
 ---
 
 ## Task 7：Markdown 报告生成
 
-- [ ] 实现 `src/index_score/report/template.py`
-  - [ ] Jinja2 模板，参照 [architecture](.agents/doc/architecture/01-architecture-design.md) 报告格式定义
-  - [ ] 4 个章节：摘要 / 打分明细 / 详细分析 / 数据来源与声明
-- [ ] 实现 `src/index_score/report/generator.py`
-  - [ ] `generate_report(report_data: ReportData) → str`
-- [ ] 实现 `src/index_score/report/exporter.py`
-  - [ ] `export_report(content, date) → str`（文件路径）
-  - [ ] 保存到 `report/指数打分报告_YYYYMMDD.md`
-- [ ] 编写 `tests/test_report.py`：报告结构完整性、文件写入
-- [ ] 验收：报告包含摘要、打分明细表、详细分析、数据来源
-- [ ] 验收：文件名格式正确
-- [ ] 验收：`pytest tests/test_report.py` 通过
+- [x] 实现 `src/index_score/report/template.py`
+  - [x] Jinja2 模板，参照 [architecture](.agents/doc/architecture/01-architecture-design.md) 报告格式定义
+  - [x] 4 个章节：摘要 / 打分明细 / 详细分析 / 数据来源与声明
+- [x] 实现 `src/index_score/report/generator.py`
+  - [x] `generate_report(scores, interpretations, sort_by, generated_at) → str`
+  - [x] `ReportSummary` / `AnalysisItem` 数据类，预格式化字段避免模板长行
+  - [x] 打分明细表：动态因子列，格式 `分位值(分数)`
+- [x] 实现 `src/index_score/report/exporter.py`
+  - [x] `export_report(content, date, output_dir) → Path`
+  - [x] 保存到 `report/指数打分报告_YYYYMMDD.md`，同日覆盖
+- [x] 编写 `tests/test_report.py`：报告结构完整性、文件写入、排序、集成（30 个测试）
+- [x] 验收：报告包含摘要、打分明细表、详细分析、数据来源
+- [x] 验收：文件名格式正确（`指数打分报告_YYYYMMDD.md`）
+- [x] 验收：`pytest tests/test_report.py` 通过
 
 ---
 

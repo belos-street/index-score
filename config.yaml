@@ -71,7 +71,7 @@ score_ranges:
 
 llm:
   provider: "deepseek"
-  model: "deepseek-chat"
+  model: "deepseek-v4-flash"
   api_key_env: "INDEX_SCORE_LLM_API_KEY"
   base_url: "https://api.deepseek.com"
   timeout: 30
